@@ -133,3 +133,4 @@ export function AdminCategories() {
     </div>
   );
 }
+export default AdminCategories;

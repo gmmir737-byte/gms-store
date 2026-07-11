@@ -249,3 +249,4 @@ export function CartPage() {
     </div>
   );
 }
+export default CartPage;

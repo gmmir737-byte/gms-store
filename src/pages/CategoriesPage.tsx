@@ -106,3 +106,4 @@ export function CategoriesPage() {
     </div>
   );
 }
+export default CategoriesPage;

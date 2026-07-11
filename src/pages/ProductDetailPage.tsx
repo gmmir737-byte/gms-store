@@ -460,3 +460,4 @@ export function ProductDetailPage() {
     </div>
   );
 }
+export default ProductDetailPage;

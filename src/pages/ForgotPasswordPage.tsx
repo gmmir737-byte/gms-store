@@ -101,3 +101,4 @@ export function ForgotPasswordPage() {
     </div>
   );
 }
+export default ForgotPasswordPage;

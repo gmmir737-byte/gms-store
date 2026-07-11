@@ -233,3 +233,4 @@ export function ShopPage() {
     </div>
   );
 }
+export default ShopPage;

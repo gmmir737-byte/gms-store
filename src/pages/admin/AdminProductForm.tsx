@@ -285,3 +285,4 @@ export function AdminProductForm() {
     </div>
   );
 }
+export default AdminProductForm;

@@ -234,3 +234,4 @@ export function AdminProducts() {
     </div>
   );
 }
+export default AdminProducts;

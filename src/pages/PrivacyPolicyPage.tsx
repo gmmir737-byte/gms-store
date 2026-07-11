@@ -62,3 +62,4 @@ export function PrivacyPolicyPage() {
     </div>
   );
 }
+export default PrivacyPolicyPage;
