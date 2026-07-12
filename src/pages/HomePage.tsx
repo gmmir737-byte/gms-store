@@ -27,6 +27,13 @@ export function HomePage() {
         supabase.from('categories').select('*').order('sort_order').limit(10),
       ]);
 
+      console.log("Featured:", featuredRes);
+console.log("New Arrivals:", newArrivalsRes);
+console.log("Bestsellers:", bestsellersRes);
+console.log("Flash Sale:", flashSaleRes);
+console.log("Categories:", categoriesRes);
+console.log("First Product:", featuredRes.data?.[0]);
+console.log("Images:", featuredRes.data?.[0]?.images);
       if (featuredRes.data) setFeaturedProducts(featuredRes.data as Product[]);
       if (newArrivalsRes.data) setNewArrivals(newArrivalsRes.data as Product[]);
       if (bestsellersRes.data) setBestsellers(bestsellersRes.data as Product[]);

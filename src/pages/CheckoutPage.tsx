@@ -171,10 +171,14 @@ export function CheckoutPage() {
 
       for (const item of items) {
         if (item.product) {
-          await supabase.rpc('decrement_product_quantity', {
-            p_id: item.product_id,
-            qty: item.quantity
-          }).catch(() => {});
+          const { error } = await supabase.rpc('decrement_product_quantity', {
+  p_id: item.product_id,
+  qty: item.quantity
+});
+
+if (error) {
+  console.error(error);
+}
         }
       }
 
@@ -378,7 +382,7 @@ export function CheckoutPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Visa_Inc._logo.svg/200px-Visa_Inc._logo.svg.png" alt="Visa" className="h-5 opacity-60" />
+                  <img src="https://upload.wikimedia.org/wikipedia/commons/4/41/Visa_Logo.png" alt="Visa" className="h-5 opacity-60" />
                   <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/200px-Mastercard-logo.svg.png" alt="Mastercard" className="h-5 opacity-60" />
                 </div>
               </label>
