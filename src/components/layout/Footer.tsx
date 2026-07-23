@@ -1,5 +1,5 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
+import { useSettings } from '../../contexts/SettingsContext';
 import {
   Facebook,
   Twitter,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 export function Footer() {
+  const { settings } = useSettings();
   return (
     <footer className="bg-gray-900 text-gray-300 mt-20">
       {/* Features Section */}
@@ -67,28 +68,65 @@ export function Footer() {
           {/* Company Info */}
           <div>
             <Link to="/" className="flex items-center gap-2 mb-6">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center">
-                <span className="text-white font-bold text-lg">GM</span>
-              </div>
-              <span className="text-xl font-display font-bold text-white">GM's Store</span>
-            </Link>
+  <div className="w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
+    {settings.logo_url ? (
+      <img
+        src={settings.logo_url}
+        alt={settings.store_name || "Store"}
+        className="w-full h-full object-cover"
+      />
+    ) : (
+      <span className="text-white font-bold text-lg">
+        {(settings.store_name || "Store").charAt(0).toUpperCase()}
+      </span>
+    )}
+  </div>
+
+  <span className="text-xl font-display font-bold text-white">
+    {settings.store_name || "Store"}
+  </span>
+</Link>
             <p className="text-gray-400 mb-6 leading-relaxed">
-              Your one-stop destination for all your shopping needs. Quality products, great prices, and excellent service.
-            </p>
-            <div className="flex gap-3">
-              <a href="#" className="w-10 h-10 bg-gray-800 hover:bg-primary-600 rounded-full flex items-center justify-center transition-colors">
-                <Facebook className="h-5 w-5" />
-              </a>
-              <a href="#" className="w-10 h-10 bg-gray-800 hover:bg-primary-600 rounded-full flex items-center justify-center transition-colors">
-                <Twitter className="h-5 w-5" />
-              </a>
-              <a href="#" className="w-10 h-10 bg-gray-800 hover:bg-primary-600 rounded-full flex items-center justify-center transition-colors">
-                <Instagram className="h-5 w-5" />
-              </a>
-              <a href="#" className="w-10 h-10 bg-gray-800 hover:bg-primary-600 rounded-full flex items-center justify-center transition-colors">
-                <Youtube className="h-5 w-5" />
-              </a>
-            </div>
+  {settings.store_tagline ||
+    "Your one-stop destination for all your shopping needs. Quality products, great prices, and excellent service."}
+</p>
+           <div className="flex gap-3">
+  <a
+    href={settings.facebook || "#"}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="w-10 h-10 bg-gray-800 hover:bg-primary-600 rounded-full flex items-center justify-center transition-colors"
+  >
+    <Facebook className="h-5 w-5" />
+  </a>
+
+  <a
+    href={settings.twitter || "#"}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="w-10 h-10 bg-gray-800 hover:bg-primary-600 rounded-full flex items-center justify-center transition-colors"
+  >
+    <Twitter className="h-5 w-5" />
+  </a>
+
+  <a
+    href={settings.instagram || "#"}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="w-10 h-10 bg-gray-800 hover:bg-primary-600 rounded-full flex items-center justify-center transition-colors"
+  >
+    <Instagram className="h-5 w-5" />
+  </a>
+
+  <a
+    href={settings.youtube || "#"}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="w-10 h-10 bg-gray-800 hover:bg-primary-600 rounded-full flex items-center justify-center transition-colors"
+  >
+    <Youtube className="h-5 w-5" />
+  </a>
+</div>
           </div>
 
           {/* Quick Links */}
@@ -135,32 +173,55 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Contact Info */}
-          <div>
-            <h3 className="text-white font-semibold mb-6">Contact Us</h3>
-            <ul className="space-y-4">
-              <li className="flex items-start gap-3">
-                <MapPin className="h-5 w-5 text-primary-500 flex-shrink-0 mt-0.5" />
-                <span className="text-gray-400">123 Shopping Street, Mumbai, India 400001</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <Phone className="h-5 w-5 text-primary-500 flex-shrink-0" />
-                <a href="tel:+919876543210" className="text-gray-400 hover:text-white transition-colors">
-                  +91 98765 43210
-                </a>
-              </li>
-              <li className="flex items-center gap-3">
-                <Mail className="h-5 w-5 text-primary-500 flex-shrink-0" />
-                <a href="mailto:support@gmsstore.com" className="text-gray-400 hover:text-white transition-colors">
-                  support@gmsstore.com
-                </a>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
+         {/* Contact Info */}
+<div>
+  <h3 className="text-white font-semibold mb-6">Contact Us</h3>
 
-      {/* Newsletter */}
+  <ul className="space-y-4">
+    <li className="flex items-start gap-3">
+      <MapPin className="h-5 w-5 text-primary-500 flex-shrink-0 mt-0.5" />
+
+      <span className="text-gray-400">
+        {[
+          settings.address,
+          settings.city,
+          settings.state,
+          settings.country,
+          settings.postal_code,
+        ]
+          .filter(Boolean)
+          .join(", ") || "Address not available"}
+      </span>
+    </li>
+
+    <li className="flex items-center gap-3">
+      <Phone className="h-5 w-5 text-primary-500 flex-shrink-0" />
+
+      <a
+        href={settings.phone ? `tel:${settings.phone}` : "#"}
+        className="text-gray-400 hover:text-white transition-colors"
+      >
+        {settings.phone || "Phone not available"}
+      </a>
+    </li>
+
+    <li className="flex items-center gap-3">
+      <Mail className="h-5 w-5 text-primary-500 flex-shrink-0" />
+
+      <a
+        href={settings.email ? `mailto:${settings.email}` : "#"}
+        className="text-gray-400 hover:text-white transition-colors"
+      >
+        {settings.email || "Email not available"}
+      </a>
+    </li>
+  </ul>
+</div>
+
+</div>
+</div>
+
+{/* Newsletter */}
       <div className="border-t border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
@@ -189,7 +250,9 @@ export function Footer() {
       <div className="border-t border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-gray-400">
-            <p>© 2024 GM's Store. All rights reserved.</p>
+           <p>
+  © {new Date().getFullYear()} {settings.store_name || "Store"}. All rights reserved.
+</p>
             <div className="flex items-center gap-6">
               <span>We accept:</span>
               <div className="flex items-center gap-2">

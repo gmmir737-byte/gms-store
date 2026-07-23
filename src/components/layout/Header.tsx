@@ -19,6 +19,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import { useWishlist } from '../../contexts/WishlistContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useSettings } from '../../contexts/SettingsContext';
 import { Button } from '../common';
 
 export function Header() {
@@ -32,6 +33,8 @@ export function Header() {
   const { itemCount } = useCart();
   const { itemCount: wishlistCount } = useWishlist();
   const { theme, toggleTheme } = useTheme();
+  const { settings } = useSettings();
+  console.log("HEADER SETTINGS:", settings);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -70,11 +73,21 @@ export function Header() {
           <div className="flex items-center justify-between h-16 lg:h-20">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2 flex-shrink-0">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-pink-500 to-primary-600 rounded-xl flex items-center justify-center">
-                <span className="text-white font-bold text-lg">GM</span>
-              </div>
+              <div className="w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-br from-primary-600 to-pink-500 flex items-center justify-center">
+  {settings.logo_url ? (
+    <img
+      src={settings.logo_url}
+      alt={settings.store_name || "Store"}
+      className="w-full h-full object-cover"
+    />
+  ) : (
+    <span className="text-white font-bold text-lg">
+      {(settings.store_name || "Store").charAt(0).toUpperCase()}
+    </span>
+  )}
+</div>
               <span className="text-xl font-display font-bold text-gray-900 dark:text-white hidden sm:block">
-                GM's Store
+                {settings.store_name || "Store"}
               </span>
             </Link>
 

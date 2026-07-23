@@ -5,9 +5,11 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import { WishlistProvider } from './contexts/WishlistContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { SettingsProvider } from './contexts/SettingsContext';
 import { Layout, AdminLayout } from './components/layout';
 import { PageLoader } from './components/common';
-
+import { useEffect } from "react";
+import { useSettings } from "./contexts/SettingsContext";
 // Lazy load pages
 const HomePage = React.lazy(() => import('./pages/HomePage'));
 const ShopPage = React.lazy(() => import('./pages/ShopPage'));
@@ -36,6 +38,7 @@ const AdminCategories = React.lazy(() => import('./pages/admin/AdminCategories')
 const AdminOrders = React.lazy(() => import('./pages/admin/AdminOrders'));
 const AdminCustomers = React.lazy(() => import('./pages/admin/AdminCustomers'));
 const AdminCoupons = React.lazy(() => import('./pages/admin/AdminCoupons'));
+const AdminSettings = React.lazy(() => import('./pages/admin/AdminSettings'));
 
 // Protected Route for authenticated users
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -169,7 +172,6 @@ function AppRoutes() {
           }
         />
 
-        {/* 404 */}
         <Route path="*" element={<NotFoundPage />} />
       </Route>
 
@@ -190,35 +192,63 @@ function AppRoutes() {
         <Route path="orders" element={<AdminOrders />} />
         <Route path="customers" element={<AdminCustomers />} />
         <Route path="coupons" element={<AdminCoupons />} />
+        <Route path="settings" element={<AdminSettings />} />
       </Route>
     </Routes>
   );
+}
+function AppTitle() {
+  const { settings } = useSettings();
+
+  useEffect(() => {
+  document.title = settings.store_name || "My Store";
+
+  if (settings.favicon_url) {
+    let favicon = document.querySelector(
+      "link[rel='icon']"
+    ) as HTMLLinkElement | null;
+
+    if (!favicon) {
+      favicon = document.createElement("link");
+      favicon.rel = "icon";
+      document.head.appendChild(favicon);
+    }
+
+    favicon.href = settings.favicon_url;
+  }
+}, [settings.store_name, settings.favicon_url]);
+
+  return null;
 }
 
 function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <CartProvider>
-          <WishlistProvider>
-            <BrowserRouter>
-              <Suspense fallback={<PageLoader />}>
-                <AppRoutes />
-              </Suspense>
-              <Toaster
-                position="top-right"
-                toastOptions={{
-                  duration: 3000,
-                  style: {
-                    background: 'var(--toast-bg)',
-                    color: 'var(--toast-color)',
-                  },
-                  className: 'dark:bg-gray-800 dark:text-white',
-                }}
-              />
-            </BrowserRouter>
-          </WishlistProvider>
-        </CartProvider>
+        <SettingsProvider>
+          <CartProvider>
+            <WishlistProvider>
+              <BrowserRouter>
+              <AppTitle />
+                <Suspense fallback={<PageLoader />}>
+                  <AppRoutes />
+                </Suspense>
+
+                <Toaster
+                  position="top-right"
+                  toastOptions={{
+                    duration: 3000,
+                    style: {
+                      background: 'var(--toast-bg)',
+                      color: 'var(--toast-color)',
+                    },
+                    className: 'dark:bg-gray-800 dark:text-white',
+                  }}
+                />
+              </BrowserRouter>
+            </WishlistProvider>
+          </CartProvider>
+        </SettingsProvider>
       </AuthProvider>
     </ThemeProvider>
   );

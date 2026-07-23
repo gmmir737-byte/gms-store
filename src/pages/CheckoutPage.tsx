@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, CreditCard, Truck, ShoppingBag, ChevronRight } from 'lucide-react';
+import { MapPin, CreditCard, Truck, ShoppingBag } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
-import { Button, Input, EmptyState, LoadingSpinner } from '../components/common';
+import { Button, Input, LoadingSpinner } from '../components/common';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import type { Address } from '../types/database';
@@ -78,7 +78,6 @@ export function CheckoutPage() {
         return;
       }
     }
-
     if (!user) return;
 
     setSavingOrder(true);
@@ -87,19 +86,29 @@ export function CheckoutPage() {
       let shippingAddressData: Address | null = null;
 
       if (showNewAddressForm) {
-        const { data: savedAddress } = await supabase
-          .from('addresses')
-          .insert({
-            user_id: user.id,
-            type: 'shipping',
-            is_default: addresses.length === 0,
-            ...newAddress,
-          })
-          .select()
-          .maybeSingle();
-        if (savedAddress) {
-          shippingAddressData = savedAddress as Address;
-        }
+
+      const { data: savedAddress, error: addressError } = await supabase
+  .from('addresses')
+  .insert({
+    user_id: user.id,
+    type: 'shipping',
+    is_default: addresses.length === 0,
+    ...newAddress,
+  })
+  .select()
+  .single();
+
+if (addressError || !savedAddress) {
+  toast.error(addressError?.message || "Failed to save address");
+  setSavingOrder(false);
+  return;
+}
+
+shippingAddressData = savedAddress as Address;
+
+setAddresses(prev => [...prev, savedAddress as Address]);
+setSelectedAddress(savedAddress.id);
+setShowNewAddressForm(false);
       } else {
         shippingAddressData = addresses.find(a => a.id === selectedAddress) || null;
       }
@@ -261,12 +270,15 @@ if (error) {
                   </label>
                 ))}
                 <Button
-                  variant="outline"
-                  onClick={() => setShowNewAddressForm(true)}
-                  className="w-full mt-4"
-                >
-                  Add New Address
-                </Button>
+  variant="outline"
+  onClick={() => {
+    setSelectedAddress(null);
+    setShowNewAddressForm(true);
+  }}
+  className="w-full mt-4"
+>
+  Add New Address
+</Button>
               </div>
             ) : (
               <div className="space-y-4">
@@ -318,11 +330,18 @@ if (error) {
                 </div>
                 {addresses.length > 0 && (
                   <Button
-                    variant="ghost"
-                    onClick={() => setShowNewAddressForm(false)}
-                  >
-                    Use Existing Address
-                  </Button>
+  variant="ghost"
+  onClick={() => {
+    setShowNewAddressForm(false);
+
+    if (addresses.length > 0) {
+      const defaultAddr = addresses.find(a => a.is_default);
+      setSelectedAddress(defaultAddr ? defaultAddr.id : addresses[0].id);
+    }
+  }}
+>
+  Use Existing Address
+</Button>
                 )}
               </div>
             )}
