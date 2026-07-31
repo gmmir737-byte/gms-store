@@ -32,18 +32,23 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             .eq('status', 'active');
 
           if (products) {
-            const mappedItems: CartItem[] = localItems.map(localItem => {
-              const product = products.find(p => p.id === localItem.product_id);
-              return {
-                id: `local-${localItem.product_id}`,
-                user_id: 'local',
-                product_id: localItem.product_id,
-                quantity: localItem.quantity,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-                product: product as Product,
-              };
-            }).filter(i => i.product);
+            const productMap = new Map((products as Product[]).map((product) => [product.id, product] as const));
+            const mappedItems: CartItem[] = localItems
+              .map(localItem => {
+                const product = productMap.get(localItem.product_id);
+                return product
+                  ? {
+                      id: `local-${localItem.product_id}`,
+                      user_id: 'local',
+                      product_id: localItem.product_id,
+                      quantity: localItem.quantity,
+                      created_at: new Date().toISOString(),
+                      updated_at: new Date().toISOString(),
+                      product,
+                    }
+                  : null;
+              })
+              .filter((item): item is CartItem => item !== null);
             setItems(mappedItems);
           }
         } else {
@@ -96,25 +101,29 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       saveLocalCart(localItems);
       await fetchCart();
-      return;
+      return { error: null };
     }
 
     const existing = items.find(i => i.product_id === productId);
 
-    if (existing) {
-      await supabase
-        .from('cart_items')
-        .update({ quantity: existing.quantity + quantity })
-        .eq('id', existing.id);
-    } else {
-      await supabase.from('cart_items').insert({
-        user_id: user.id,
-        product_id: productId,
-        quantity,
-      });
+    try {
+      const quantityToSave = (existing?.quantity ?? 0) + quantity;
+      const { error } = await supabase.from('cart_items').upsert(
+        {
+          user_id: user.id,
+          product_id: productId,
+          quantity: quantityToSave,
+        },
+        { onConflict: ['user_id', 'product_id'] }
+      );
+      if (error) return { error: error.message };
+    } catch (err) {
+      console.error('Add to cart error:', err);
+      return { error: err instanceof Error ? err.message : String(err) };
     }
 
     await fetchCart();
+    return { error: null };
   }, [user, items, fetchCart, saveLocalCart]);
 
   const removeItem = useCallback(async (itemId: string) => {

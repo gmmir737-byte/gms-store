@@ -2,10 +2,13 @@ import React from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle, Package, ShoppingBag, Home } from 'lucide-react';
 import { Button } from '../components/common';
+import { useSettings } from '../contexts/SettingsContext';
 
 export function OrderSuccessPage() {
+  const { settings } = useSettings();
   const [searchParams] = useSearchParams();
-  const orderNumber = searchParams.get('order');
+const orderNumber = searchParams.get('order');
+const customerEmail = searchParams.get('email');
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-20">
@@ -20,7 +23,7 @@ export function OrderSuccessPage() {
           </h1>
 
           <p className="text-gray-500 dark:text-gray-400 mb-6">
-            Thank you for your order. We've received your order and will process it shortly.
+           Thank you for shopping with {settings.store_name}. We've received your order and will process it shortly.
           </p>
 
           {orderNumber && (
@@ -38,7 +41,7 @@ export function OrderSuccessPage() {
                   What happens next?
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  We'll send you an email confirmation with your order details and tracking information once your order ships.
+  customerEmail = {String(customerEmail)}
                 </p>
               </div>
             </div>

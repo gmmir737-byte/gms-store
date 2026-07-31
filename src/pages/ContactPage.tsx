@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { Mail, Phone, MapPin, Send, Clock, MessageCircle } from 'lucide-react';
 import { Button, Input, Textarea } from '../components/common';
 import toast from 'react-hot-toast';
+import { useSettings } from '../contexts/SettingsContext';
 
 export function ContactPage() {
+  const { settings } = useSettings();
   const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
   const [submitting, setSubmitting] = useState(false);
 
@@ -19,9 +21,9 @@ export function ContactPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-display font-bold text-gray-900 dark:text-white mb-4">Contact Us</h1>
+        <h1 className="text-4xl font-display font-bold text-gray-900 dark:text-white mb-4">Contact {settings.store_name}</h1>
         <p className="text-gray-500 dark:text-gray-400 max-w-2xl mx-auto">
-          Have a question or need assistance? We're here to help. Reach out to us and our team will respond promptly.
+          Need help? Contact {settings.store_name}. Our support team will respond as quickly as possible.
         </p>
       </div>
 
@@ -35,8 +37,8 @@ export function ContactPage() {
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">Email</h3>
-                <a href="mailto:support@gmsstore.com" className="text-primary-600 dark:text-primary-400 hover:underline">
-                  support@gmsstore.com
+                <a href={`mailto:${settings.email}`} className="text-primary-600 dark:text-primary-400 hover:underline">
+                  {settings.email}
                 </a>
               </div>
             </div>
@@ -49,8 +51,8 @@ export function ContactPage() {
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">Phone</h3>
-                <a href="tel:+919876543210" className="text-primary-600 dark:text-primary-400 hover:underline">
-                  +91 98765 43210
+                <a href={`tel:${settings.phone}`} className="text-primary-600 dark:text-primary-400 hover:underline">
+                  {settings.phone}
                 </a>
               </div>
             </div>
@@ -64,8 +66,12 @@ export function ContactPage() {
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">Address</h3>
                 <p className="text-gray-600 dark:text-gray-400">
-                  123 Shopping Street<br />Mumbai, India 400001
-                </p>
+  {settings.address}
+  <br />
+  {settings.city}, {settings.state}
+  <br />
+  {settings.country} {settings.postal_code}
+</p>
               </div>
             </div>
           </div>

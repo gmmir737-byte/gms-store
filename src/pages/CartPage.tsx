@@ -5,15 +5,20 @@ import { useCart } from '../contexts/CartContext';
 import { useWishlist } from '../contexts/WishlistContext';
 import { Button, QuantitySelector, Badge, EmptyState, Input } from '../components/common';
 import toast from 'react-hot-toast';
+import { useSettings } from '../contexts/SettingsContext';
 
 export function CartPage() {
   const { items, loading, removeItem, updateQuantity, subtotal, clearCart } = useCart();
   const { addItem: addToWishlist } = useWishlist();
   const navigate = useNavigate();
+  const { settings } = useSettings();
   const [couponCode, setCouponCode] = useState('');
   const [applyingCoupon, setApplyingCoupon] = useState(false);
 
-  const shippingCost = subtotal >= 499 ? 0 : 49;
+ const shippingCost =
+  subtotal >= settings.free_shipping_amount
+    ? 0
+    : settings.shipping_charge;
   const total = subtotal + shippingCost;
 
   const handleApplyCoupon = async (e: React.FormEvent) => {
@@ -192,7 +197,7 @@ export function CartPage() {
               </div>
               {shippingCost > 0 && (
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Add ₹{(499 - subtotal).toLocaleString()} more for FREE shipping
+                  Add ₹{(settings.free_shipping_amount - subtotal).toLocaleString()} more for FREE shipping
                 </p>
               )}
               <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
@@ -240,7 +245,9 @@ export function CartPage() {
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                 <Truck className="h-4 w-4" />
-                <span>Free shipping over ₹499</span>
+               <span>
+  Free shipping over ₹{settings.free_shipping_amount}
+</span>
               </div>
             </div>
           </div>

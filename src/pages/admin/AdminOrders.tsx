@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Badge, Button, LoadingSpinner, Modal, Select, Input } from '../../components/common';
+import { Badge, Button, LoadingSpinner, Modal, Select, Input, Pagination } from '../../components/common';
 import type { Order } from '../../types/database';
 import toast from 'react-hot-toast';
 
@@ -12,19 +12,24 @@ const statusOptions = [
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
+const ITEMS_PER_PAGE = 20;
+
 export function AdminOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'>('all');
   const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalOrders, setTotalOrders] = useState(0);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   useEffect(() => {
     const fetchOrders = async () => {
       setLoading(true);
+
       let query = supabase
         .from('orders')
-        .select('*, items:order_items(*)')
+        .select('*, items:order_items(*)', { count: 'exact' })
         .order('created_at', { ascending: false });
 
       if (filter !== 'all') {
@@ -35,15 +40,19 @@ export function AdminOrders() {
         query = query.or(`order_number.ilike.%${search}%`);
       }
 
-      const { data, error } = await query;
+      const start = (currentPage - 1) * ITEMS_PER_PAGE;
+      const end = start + ITEMS_PER_PAGE - 1;
+      const { data, error, count } = await query.range(start, end);
+
       if (!error && data) {
         setOrders(data as Order[]);
       }
+      setTotalOrders(count || 0);
       setLoading(false);
     };
 
     fetchOrders();
-  }, [filter, search]);
+  }, [filter, search, currentPage]);
 
   const handleUpdateStatus = async (orderId: string, newStatus: string) => {
     const { error } = await supabase

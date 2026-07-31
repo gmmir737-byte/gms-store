@@ -6,6 +6,7 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   helperText?: string;
   icon?: React.ReactNode;
   iconPosition?: 'left' | 'right';
+  rightIcon?: React.ReactNode;
 }
 
 export function Input({
@@ -14,6 +15,7 @@ export function Input({
   helperText,
   icon,
   iconPosition = 'left',
+  rightIcon,
   className = '',
   id,
   ...props
@@ -39,6 +41,7 @@ export function Input({
             w-full px-4 py-2.5 rounded-lg border transition-colors duration-200
             ${icon && iconPosition === 'left' ? 'pl-10' : ''}
             ${icon && iconPosition === 'right' ? 'pr-10' : ''}
+            ${rightIcon ? 'pr-12' : ''}
             ${error
               ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
               : 'border-gray-300 dark:border-gray-600 focus:border-primary-500 focus:ring-primary-500'
@@ -55,6 +58,11 @@ export function Input({
         {icon && iconPosition === 'right' && (
           <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
             {icon}
+          </div>
+        )}
+        {rightIcon && (
+          <div className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400">
+            {rightIcon}
           </div>
         )}
       </div>

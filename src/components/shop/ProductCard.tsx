@@ -37,8 +37,12 @@ export function ProductCard({ product, variant = 'grid' }: ProductCardProps) {
       toast.error('Product is out of stock');
       return;
     }
-    await addToCart(product.id);
-    toast.success('Added to cart!');
+    const res = await addToCart(product.id);
+    if (res?.error) {
+      toast.error(res.error);
+    } else {
+      toast.success('Added to cart!');
+    }
   };
 
   const handleWishlistToggle = async (e: React.MouseEvent) => {

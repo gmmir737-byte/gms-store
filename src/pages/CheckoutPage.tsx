@@ -1,16 +1,54 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, CreditCard, Truck, ShoppingBag } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
+import { useSettings } from '../contexts/SettingsContext';
 import { Button, Input, LoadingSpinner } from '../components/common';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { createRazorpayOrder, verifyRazorpayPayment, markRazorpayOrderFailed } from '../lib/payment';
 import type { Address } from '../types/database';
 
+interface RazorpayPaymentResponse {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}
+
+interface RazorpayOptions {
+  key: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  order_id: string;
+  prefill: {
+    name: string;
+    email: string;
+    contact: string;
+  };
+  notes: {
+    order_number: string;
+  };
+  handler: (response: RazorpayPaymentResponse) => void | Promise<void>;
+  modal: {
+    ondismiss: () => void | Promise<void>;
+  };
+}
+
+interface RazorpayInstance {
+  open(): void;
+}
+
+interface RazorpayWindow extends Window {
+  Razorpay: new (options: RazorpayOptions) => RazorpayInstance;
+}
+
 export function CheckoutPage() {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const { items, subtotal, clearCart } = useCart();
+  const { settings } = useSettings();
   const navigate = useNavigate();
 
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -27,7 +65,7 @@ export function CheckoutPage() {
     city: '',
     state: '',
     postal_code: '',
-    country: 'India',
+    country: settings.country || "India",
   });
 
   const [showNewAddressForm, setShowNewAddressForm] = useState(false);
@@ -46,31 +84,99 @@ export function CheckoutPage() {
 
   useEffect(() => {
     const fetchAddresses = async () => {
-      if (!user) return;
-      setLoading(true);
-      const { data } = await supabase
-        .from('addresses')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('type', 'shipping');
-      if (data && data.length > 0) {
-        setAddresses(data as Address[]);
-        const defaultAddr = data.find(a => a.is_default);
-        setSelectedAddress(defaultAddr ? defaultAddr.id : data[0].id);
-      }
-      setLoading(false);
-    };
+  if (!user) return;
+
+  setLoading(true);
+
+  try {
+    const { data, error } = await supabase
+  .from("addresses")
+  .select("*")
+  .eq("user_id", user.id);
+
+console.log("Current User:", user);
+console.log("Fetched Addresses:", data);
+console.log("Supabase Error:", error);
+
+    if (error) throw error;
+
+    const addressList = (data || []) as Address[];
+
+    setAddresses(addressList);
+
+    if (addressList.length > 0) {
+      const defaultAddress =
+        addressList.find((a) => a.is_default) || addressList[0];
+
+      setSelectedAddress(defaultAddress.id);
+    } else {
+      setSelectedAddress(null);
+    }
+  } catch (error) {
+    console.error("Address Error:", error);
+    toast.error("Failed to load addresses");
+  } finally {
+    setLoading(false);
+  }
+};
     fetchAddresses();
   }, [user]);
 
-  const shippingCost = subtotal >= 499 ? 0 : 49;
+  const shippingCost =
+  subtotal >= settings.free_shipping_amount
+    ? 0
+    : settings.shipping_charge;
   const total = subtotal + shippingCost;
 
-  const handlePlaceOrder = async () => {
-    if (!selectedAddress && !showNewAddressForm) {
-      toast.error('Please select or add a delivery address');
-      return;
-    }
+
+const sendOrderEmail = async (orderData: any) => {
+  try {
+    await fetch("/.netlify/functions/send-order-email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(orderData),
+    });
+  } catch (error) {
+    console.error("Email sending failed:", error);
+  }
+};
+
+
+const handlePlaceOrder = async () => {
+    if (!showNewAddressForm && addresses.length === 0) {
+  const { data } = await supabase
+    .from("addresses")
+    .select("*")
+    .eq("user_id", user!.id);
+
+  if (data && data.length > 0) {
+    setAddresses(data as Address[]);
+    setSelectedAddress(
+      data.find(a => a.is_default)?.id ?? data[0].id
+    );
+  } else {
+    toast.error("Please add a delivery address");
+    setSavingOrder(false);
+    return;
+  }
+}
+
+if (
+  addresses.length > 0 &&
+  !selectedAddress &&
+  !showNewAddressForm
+) {
+  const defaultAddress =
+    addresses.find((a) => a.is_default) || addresses[0];
+
+  setSelectedAddress(defaultAddress.id);
+
+  toast.error("Please select a delivery address");
+
+  return;
+}
 
     if (showNewAddressForm) {
       if (!newAddress.full_name || !newAddress.phone || !newAddress.address_line1 || !newAddress.city || !newAddress.state || !newAddress.postal_code) {
@@ -110,7 +216,11 @@ setAddresses(prev => [...prev, savedAddress as Address]);
 setSelectedAddress(savedAddress.id);
 setShowNewAddressForm(false);
       } else {
-        shippingAddressData = addresses.find(a => a.id === selectedAddress) || null;
+        shippingAddressData =
+  addresses.find((a) => a.id === selectedAddress) ??
+  addresses.find((a) => a.is_default) ??
+  addresses[0] ??
+  null;
       }
 
       if (!shippingAddressData) {
@@ -121,14 +231,156 @@ setShowNewAddressForm(false);
 
       const orderNumber = `GM${Date.now().toString().slice(-8)}`;
 
+      const razorpayItems = items.map((item) => {
+        const price = item.product?.is_flash_sale && item.product?.flash_sale_price
+          ? item.product.flash_sale_price
+          : item.product?.price || 0;
+
+        return {
+          product_id: item.product_id,
+          product_name: item.product?.name || 'Unknown Product',
+          product_image: item.product?.images?.[0] || null,
+          quantity: item.quantity,
+          price,
+          total: price * item.quantity,
+        };
+      });
+
+      if (paymentMethod === 'razorpay') {
+        const payload = {
+          user_id: user.id,
+          order_number: orderNumber,
+          total,
+          subtotal,
+          discount: 0,
+          shipping_cost: shippingCost,
+          tax: 0,
+          currency: settings.currency || 'INR',
+          shipping_address: {
+            full_name: shippingAddressData.full_name,
+            phone: shippingAddressData.phone,
+            address_line1: shippingAddressData.address_line1,
+            address_line2: shippingAddressData.address_line2,
+            city: shippingAddressData.city,
+            state: shippingAddressData.state,
+            postal_code: shippingAddressData.postal_code,
+            country: shippingAddressData.country,
+          },
+          billing_address: {
+            full_name: shippingAddressData.full_name,
+            phone: shippingAddressData.phone,
+            address_line1: shippingAddressData.address_line1,
+            address_line2: shippingAddressData.address_line2,
+            city: shippingAddressData.city,
+            state: shippingAddressData.state,
+            postal_code: shippingAddressData.postal_code,
+            country: shippingAddressData.country,
+          },
+          items: razorpayItems,
+          email: user.email ?? undefined,
+          phone: shippingAddressData.phone,
+          coupon_id: null,
+          notes: null,
+        };
+
+        const response = await createRazorpayOrder(payload);
+        if (response.error || !response.razorpayOrder || !response.order) {
+          toast.error(response.error || 'Failed to create Razorpay order');
+          setSavingOrder(false);
+          return;
+        }
+
+        const razorpayOrder = response.razorpayOrder;
+        const orderRecord = response.order;
+
+        const options = {
+          key: import.meta.env.VITE_RAZORPAY_KEY_ID ?? '',
+          amount: razorpayOrder.amount,
+          currency: razorpayOrder.currency,
+          name: settings.store_name,
+          description: `Order ${orderNumber}`,
+          order_id: razorpayOrder.id,
+          prefill: {
+            name: shippingAddressData.full_name,
+            email: user.email ?? '',
+            contact: shippingAddressData.phone,
+          },
+          notes: {
+            order_number: orderNumber,
+          },
+          handler: async function (response: RazorpayPaymentResponse) {
+            setSavingOrder(true);
+            try {
+              const verifyPayload = {
+                order_id: orderRecord.id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature,
+              };
+
+              const verifyData = await verifyRazorpayPayment(verifyPayload);
+
+              if (verifyData.error) {
+                toast.error(verifyData.error);
+                navigate(`/order-failure?order=${orderNumber}`);
+                return;
+              }
+
+              await sendOrderEmail({
+  customerEmail: user.email,
+  customerName: shippingAddressData.full_name,
+  orderNumber,
+  items: razorpayItems,
+  total,
+});
+
+await clearCart();
+
+navigate(
+  `/order-success?order=${orderNumber}&email=${encodeURIComponent(user.email ?? "")}`
+);
+            } catch {
+              toast.error('Payment verification failed. Please contact support.');
+              navigate(`/order-failure?order=${orderNumber}`);
+            } finally {
+              setSavingOrder(false);
+            }
+          },
+          modal: {
+            ondismiss: async () => {
+              toast.error('Payment was cancelled.');
+              await markRazorpayOrderFailed({ order_id: orderRecord.id, reason: 'payment_cancelled' });
+              setSavingOrder(false);
+              navigate(`/order-failure?order=${orderNumber}`);
+            },
+          },
+        };
+
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.async = true;
+        script.onload = () => {
+          const rzp = new (window as unknown as RazorpayWindow).Razorpay(options);
+          rzp.open();
+        };
+        script.onerror = async () => {
+          toast.error('Unable to load payment gateway. Please try again later.');
+          await markRazorpayOrderFailed({ order_id: orderRecord.id, reason: 'gateway_load_failed' });
+          navigate(`/order-failure?order=${orderNumber}`);
+        };
+        document.body.appendChild(script);
+        return;
+      }
+
       const { data: orderResult, error: orderError } = await supabase
         .from('orders')
         .insert({
           order_number: orderNumber,
           user_id: user.id,
           status: 'pending',
-          payment_status: paymentMethod === 'cod' ? 'pending' : 'pending',
+          payment_status: 'pending',
           payment_method: paymentMethod,
+          payment_id: null,
           subtotal,
           discount: 0,
           shipping_cost: shippingCost,
@@ -148,11 +400,16 @@ setShowNewAddressForm(false);
         .select()
         .maybeSingle();
 
-      if (orderError || !orderResult) {
-        toast.error('Failed to create order');
-        setSavingOrder(false);
-        return;
-      }
+      if (orderError) {
+  console.error(orderError);
+  toast.error(orderError.message);
+  return;
+}
+
+if (!orderResult) {
+  toast.error("Order was not created.");
+  return;
+}
 
       const orderItems = items.map(item => ({
         order_id: orderResult.id,
@@ -173,30 +430,53 @@ setShowNewAddressForm(false);
         .insert(orderItems);
 
       if (itemsError) {
-        toast.error('Failed to add order items');
-        setSavingOrder(false);
-        return;
-      }
+  console.error(itemsError);
 
-      for (const item of items) {
-        if (item.product) {
+  await supabase
+    .from("orders")
+    .delete()
+    .eq("id", orderResult.id);
+
+  toast.error(itemsError.message);
+
+  return;
+}
+
+      await Promise.all(
+        items.map(async (item) => {
+          if (!item.product) return;
           const { error } = await supabase.rpc('decrement_product_quantity', {
-  p_id: item.product_id,
-  qty: item.quantity
+            p_id: item.product_id,
+            qty: item.quantity,
+          });
+          if (error) {
+            console.error('Inventory decrement failed for', item.product_id, error);
+          }
+        })
+      );
+
+      await sendOrderEmail({
+  customerEmail: user.email,
+  customerName: shippingAddressData.full_name,
+  orderNumber,
+  items: orderItems,
+  total,
 });
 
-if (error) {
-  console.error(error);
-}
-        }
-      }
+await clearCart();
 
-      await clearCart();
+navigate(
+  `/order-success?order=${orderNumber}&email=${encodeURIComponent(user.email ?? "")}`
+);
+    } catch (error) {
+    console.error("Checkout Error:", error);
 
-      navigate(`/order-success?order=${orderNumber}`);
-    } catch (err) {
-      toast.error('Something went wrong');
-    } finally {
+    toast.error(
+        error instanceof Error
+            ? error.message
+            : "Unknown checkout error"
+    );
+} finally {
       setSavingOrder(false);
     }
   };
@@ -212,9 +492,8 @@ if (error) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <h1 className="text-3xl font-display font-bold text-gray-900 dark:text-white mb-8">
-        Checkout
-      </h1>
-
+  Checkout • {settings.store_name}
+</h1>
       <div className="lg:grid lg:grid-cols-3 lg:gap-8">
         {/* Left Column - Address & Payment */}
         <div className="lg:col-span-2 space-y-6">
@@ -357,27 +636,34 @@ if (error) {
             </div>
 
             <div className="space-y-3">
-              <label
-                className={`flex items-center gap-4 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
-                  paymentMethod === 'cod'
-                    ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20'
-                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="payment"
-                  checked={paymentMethod === 'cod'}
-                  onChange={() => setPaymentMethod('cod')}
-                />
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900 dark:text-white">Cash on Delivery</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Pay when you receive your order
-                  </p>
-                </div>
-                <Truck className="h-6 w-6 text-gray-400" />
-              </label>
+               {settings.cod_enabled && (
+<label
+  className={`flex items-center gap-4 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+    paymentMethod === "cod"
+      ? "border-primary-600 bg-primary-50 dark:bg-primary-900/20"
+      : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
+  }`}
+>
+  <input
+    type="radio"
+    name="payment"
+    checked={paymentMethod === "cod"}
+    onChange={() => setPaymentMethod("cod")}
+  />
+
+  <div className="flex-1">
+    <p className="font-medium text-gray-900 dark:text-white">
+      Cash on Delivery
+    </p>
+
+    <p className="text-sm text-gray-500 dark:text-gray-400">
+      Pay when you receive your order
+    </p>
+  </div>
+
+  <Truck className="h-6 w-6 text-gray-400" />
+</label>
+)}
 
               <label
                 className={`flex items-center gap-4 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
@@ -394,10 +680,10 @@ if (error) {
                 />
                 <div className="flex-1">
                   <p className="font-medium text-gray-900 dark:text-white">
-                    Razorpay (Coming Soon)
+                  Online Payment
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Pay securely with cards, UPI, wallets
+                    Secure online payment gateway
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -426,7 +712,7 @@ if (error) {
                 return (
                   <div key={item.id} className="flex gap-3">
                     <img
-                      src={item.product.images[0] || 'https://via.placeholder.com/80'}
+                      src={item.product.images?.[0] || 'https://via.placeholder.com/80'}
                       alt={item.product.name}
                       className="w-16 h-16 rounded-lg object-cover"
                     />
@@ -455,7 +741,14 @@ if (error) {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Shipping</span>
+                <span className="text-gray-600 dark:text-gray-400">
+Shipping
+{shippingCost === 0 && (
+<span className="text-green-600 ml-2">
+(Free above ₹{settings.free_shipping_amount})
+</span>
+)}
+</span>
                 {shippingCost === 0 ? (
                   <span className="text-green-600 font-medium">FREE</span>
                 ) : (
@@ -481,12 +774,12 @@ if (error) {
               disabled={items.length === 0}
               icon={<ShoppingBag className="h-5 w-5" />}
             >
-              Place Order
+              Place Order at {settings.store_name}
             </Button>
 
             {/* Terms */}
             <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-4">
-              By placing your order, you agree to our{' '}
+              By placing your order with {settings.store_name}, you agree to our{' '}
               <a href="/terms" className="text-primary-600 hover:underline">Terms of Service</a>
               {' '}and{' '}
               <a href="/privacy-policy" className="text-primary-600 hover:underline">Privacy Policy</a>

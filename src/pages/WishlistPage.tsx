@@ -12,7 +12,11 @@ export function WishlistPage() {
   const { addItem: addToCart } = useCart();
 
   const handleMoveToCart = async (productId: string, wishlistItemId: string) => {
-    await addToCart(productId);
+    const res = await addToCart(productId);
+    if (res?.error) {
+      toast.error(res.error);
+      return;
+    }
     await removeItem(productId);
     toast.success('Moved to cart');
   };

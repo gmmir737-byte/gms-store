@@ -356,6 +356,28 @@ DROP POLICY IF EXISTS "profiles_insert" ON profiles;
 CREATE POLICY "profiles_insert" ON profiles FOR INSERT
   TO authenticated WITH CHECK (auth.uid() = id);
 
+-- Prevent non-admin users from changing the `role` column on their profile
+-- This trigger raises an exception if a non-admin attempts to modify `role`.
+CREATE OR REPLACE FUNCTION prevent_role_change()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.role IS DISTINCT FROM OLD.role THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'
+    ) THEN
+      RAISE EXCEPTION 'Role change not permitted';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS prevent_profiles_role_change ON profiles;
+CREATE TRIGGER prevent_profiles_role_change
+  BEFORE UPDATE ON profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION prevent_role_change();
+
 -- Addresses policies (users manage own addresses)
 DROP POLICY IF EXISTS "addresses_user_manage" ON addresses;
 CREATE POLICY "addresses_user_manage" ON addresses FOR ALL

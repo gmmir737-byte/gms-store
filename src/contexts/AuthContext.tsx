@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import authLib from '../lib/auth';
 import type { AuthContextType, Profile } from '../types/database';
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<{ id: string; email: string } | null>(null);
+  const [user, setUser] = useState<{ id: string; email: string | null } | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -25,7 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .from('profiles')
           .insert({
             id: userData.user.id,
-            email: userData.user.email!,
+            email: userData.user.email ?? '',
             role: 'customer',
           })
           .select()
@@ -40,10 +41,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const initAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const session = await authLib.getSession();
         if (mounted) {
           if (session?.user) {
-            setUser({ id: session.user.id, email: session.user.email! });
+            setUser({ id: session.user.id, email: session.user.email ?? null });
             await fetchProfile(session.user.id);
           }
           setLoading(false);
@@ -56,11 +57,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const subscription = authLib.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
       if (event === 'SIGNED_IN' && session?.user) {
-        setUser({ id: session.user.id, email: session.user.email! });
+        setUser({ id: session.user.id, email: session.user.email ?? null });
         await fetchProfile(session.user.id);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
@@ -71,37 +72,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      try {
+        subscription?.unsubscribe?.();
+      } catch (_) {}
     };
   }, [fetchProfile]);
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { error: error.message };
+  const signIn = async (email: string, password: string, remember = true) => {
+    const { error } = await authLib.signInWithPassword(email, password, remember);
+    return { error };
+  };
+
+  const signUp = async (email: string, password: string, fullName = '', remember = true) => {
+    const { error } = await authLib.signUpWithPassword(email, password, fullName, remember);
+    if (error) return { error };
+    // If profile creation is handled by DB trigger, fetch it; otherwise the existing
+    // `fetchProfile` on auth state change will handle it when the session becomes active.
     return { error: null };
   };
 
-  const signUp = async (email: string, password: string, fullName: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName },
-      },
-    });
-
-    if (error) return { error: error.message };
-
-   if (data.user) {
-  // Profile is created automatically by the database trigger.
-}
-    return { error: null };
+  const signInWithProvider = async (provider: 'google' | 'apple') => {
+    const { error } = await authLib.signInWithProvider(provider);
+    return { error };
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setProfile(null);
+    const { error } = await authLib.signOut();
+    if (!error) {
+      setUser(null);
+      setProfile(null);
+    }
   };
 
   const updateProfile = async (data: Partial<Profile>) => {
@@ -119,10 +119,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    return { error: error?.message || null };
+    const { error } = await authLib.sendPasswordReset(email);
+    return { error };
   };
 
   return (
@@ -134,6 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAdmin: profile?.role === 'admin',
         signIn,
         signUp,
+        signInWithProvider,
         signOut,
         updateProfile,
         resetPassword,

@@ -19,11 +19,14 @@ const CartPage = React.lazy(() => import('./pages/CartPage'));
 const WishlistPage = React.lazy(() => import('./pages/WishlistPage'));
 const CheckoutPage = React.lazy(() => import('./pages/CheckoutPage'));
 const OrderSuccessPage = React.lazy(() => import('./pages/OrderSuccessPage'));
+const OrderFailurePage = React.lazy(() => import('./pages/OrderFailurePage'));
 const OrdersPage = React.lazy(() => import('./pages/OrdersPage'));
 const AccountPage = React.lazy(() => import('./pages/AccountPage'));
 const LoginPage = React.lazy(() => import('./pages/LoginPage'));
 const RegisterPage = React.lazy(() => import('./pages/RegisterPage'));
 const ForgotPasswordPage = React.lazy(() => import('./pages/ForgotPasswordPage'));
+const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage'));
+const OtpVerifyPage = React.lazy(() => import('./pages/OtpVerifyPage'));
 const AboutPage = React.lazy(() => import('./pages/AboutPage'));
 const ContactPage = React.lazy(() => import('./pages/ContactPage'));
 const PrivacyPolicyPage = React.lazy(() => import('./pages/PrivacyPolicyPage'));
@@ -121,6 +124,8 @@ function AppRoutes() {
           }
         />
         <Route path="forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="reset-password" element={<ResetPasswordPage />} />
+        <Route path="otp-verify" element={<OtpVerifyPage />} />
 
         {/* Protected User Routes */}
         <Route
@@ -152,6 +157,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <OrderSuccessPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="order-failure"
+          element={
+            <ProtectedRoute>
+              <OrderFailurePage />
             </ProtectedRoute>
           }
         />

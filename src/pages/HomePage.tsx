@@ -1,13 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { getCache, setCache } from '../lib/cache';
 import { HeroBanner, CategoryGrid, FlashSaleBanner, CustomerReviews } from '../components/home';
 import { ProductGrid } from '../components/shop';
-import { Button, LoadingSpinner } from '../components/common';
+import { Button } from '../components/common';
+import { useSettings } from '../contexts/SettingsContext';
 import type { Product, Category } from '../types/database';
 
 export function HomePage() {
+  const { settings } = useSettings();
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [newArrivals, setNewArrivals] = useState<Product[]>([]);
   const [bestsellers, setBestsellers] = useState<Product[]>([]);
@@ -19,26 +22,26 @@ export function HomePage() {
     const fetchData = async () => {
       setLoading(true);
 
+      const cachedCategories = getCache<Category[]>('gms_home_categories');
       const [featuredRes, newArrivalsRes, bestsellersRes, flashSaleRes, categoriesRes] = await Promise.all([
         supabase.from('products').select('*, category:categories(*)').eq('is_featured', true).eq('status', 'active').limit(8),
         supabase.from('products').select('*, category:categories(*)').eq('is_new', true).eq('status', 'active').limit(8),
         supabase.from('products').select('*, category:categories(*)').eq('is_bestseller', true).eq('status', 'active').limit(8),
         supabase.from('products').select('*, category:categories(*)').eq('is_flash_sale', true).eq('status', 'active').limit(4),
-        supabase.from('categories').select('*').order('sort_order').limit(10),
+        cachedCategories
+          ? Promise.resolve({ data: cachedCategories })
+          : supabase.from('categories').select('*').order('sort_order').limit(10),
       ]);
 
-      console.log("Featured:", featuredRes);
-console.log("New Arrivals:", newArrivalsRes);
-console.log("Bestsellers:", bestsellersRes);
-console.log("Flash Sale:", flashSaleRes);
-console.log("Categories:", categoriesRes);
-console.log("First Product:", featuredRes.data?.[0]);
-console.log("Images:", featuredRes.data?.[0]?.images);
       if (featuredRes.data) setFeaturedProducts(featuredRes.data as Product[]);
       if (newArrivalsRes.data) setNewArrivals(newArrivalsRes.data as Product[]);
       if (bestsellersRes.data) setBestsellers(bestsellersRes.data as Product[]);
       if (flashSaleRes.data) setFlashSaleProducts(flashSaleRes.data as Product[]);
-      if (categoriesRes.data) setCategories(categoriesRes.data as Category[]);
+      if (categoriesRes.data) {
+        const categoryData = categoriesRes.data as Category[];
+        setCategories(categoryData);
+        setCache('gms_home_categories', categoryData, 1000 * 60 * 15);
+      }
 
       setLoading(false);
     };
@@ -146,11 +149,13 @@ console.log("Images:", featuredRes.data?.[0]?.images);
           </div>
           <div className="relative px-6 py-12 md:px-12 md:py-16 text-center">
             <h2 className="text-3xl md:text-4xl font-display font-bold text-white mb-4">
-              Get 20% Off Your First Order
-            </h2>
-            <p className="text-gray-300 text-lg mb-6 max-w-2xl mx-auto">
-              Join our newsletter and receive an exclusive discount code for your first purchase.
-            </p>
+  Welcome to {settings.store_name}
+</h2>
+
+<p className="text-gray-300 text-lg mb-6 max-w-2xl mx-auto">
+  {settings.store_tagline ||
+    "Join our newsletter and receive exclusive offers and latest updates."}
+</p>
             <div className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
               <input
                 type="email"

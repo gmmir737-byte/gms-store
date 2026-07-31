@@ -1,36 +1,46 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, Eye, ChevronRight, ShoppingBag } from 'lucide-react';
+import { Package, Eye, ShoppingBag } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Badge, Button, EmptyState, LoadingSpinner, Modal } from '../components/common';
+import { Badge, Button, EmptyState, LoadingSpinner, Modal, Pagination } from '../components/common';
+import { useSettings } from '../contexts/SettingsContext';
 import type { Order } from '../types/database';
-import toast from 'react-hot-toast';
+
+const ITEMS_PER_PAGE = 10;
 
 export function OrdersPage() {
   const { user } = useAuth();
+  const { settings } = useSettings();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalOrders, setTotalOrders] = useState(0);
 
   useEffect(() => {
     const fetchOrders = async () => {
       if (!user) return;
       setLoading(true);
-      const { data, error } = await supabase
+
+      const start = (currentPage - 1) * ITEMS_PER_PAGE;
+      const end = start + ITEMS_PER_PAGE - 1;
+      const { data, error, count } = await supabase
         .from('orders')
-        .select('*, items:order_items(*)')
+        .select('*, items:order_items(*)', { count: 'exact' })
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(start, end);
 
       if (!error && data) {
         setOrders(data as Order[]);
       }
+      setTotalOrders(count || 0);
       setLoading(false);
     };
 
     fetchOrders();
-  }, [user]);
+  }, [user, currentPage]);
 
   if (loading) {
     return (
@@ -71,6 +81,8 @@ export function OrdersPage() {
         return 'default';
     }
   };
+
+  const totalPages = Math.max(1, Math.ceil(totalOrders / ITEMS_PER_PAGE));
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -151,6 +163,19 @@ export function OrdersPage() {
           </div>
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <div className="mt-8">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            showSummary
+            totalItems={totalOrders}
+            itemsPerPage={ITEMS_PER_PAGE}
+          />
+        </div>
+      )}
 
       {/* Order Detail Modal */}
       <Modal
@@ -233,7 +258,11 @@ export function OrdersPage() {
                   <span className="text-gray-900 dark:text-white">₹{selectedOrder.total.toLocaleString()}</span>
                 </div>
                 <div className="pt-2 text-sm text-gray-500 dark:text-gray-400">
-                  Payment: {selectedOrder.payment_method === 'cod' ? 'Cash on Delivery' : 'Razorpay'}
+                  Payment: {selectedOrder.payment_method === 'cod'
+  ? settings.cod_enabled
+    ? 'Cash on Delivery'
+    : 'Offline Payment'
+  : 'Razorpay'}
                 </div>
               </div>
             </div>

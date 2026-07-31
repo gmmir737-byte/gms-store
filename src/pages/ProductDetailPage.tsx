@@ -1,21 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Heart, Share2, Truck, Shield, RotateCcw, Check, Minus, Plus, ShoppingCart, Star, ThumbsUp, Flag } from 'lucide-react';
+import { Heart, Share2, Truck, Shield, RotateCcw, Check, ShoppingCart, Star } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useWishlist } from '../contexts/WishlistContext';
+import { useSettings } from '../contexts/SettingsContext';
 import { ProductGrid } from '../components/shop';
-import { ImageGallery, Button, Badge, QuantitySelector, Rating, EmptyState, LoadingSpinner, TabSwitch } from '../components/common';
-import type { Product, Review, Category } from '../types/database';
+import { ImageGallery, Button, Badge, QuantitySelector, Rating, EmptyState, LoadingSpinner } from '../components/common';
+import type { Product, Review } from '../types/database';
 import toast from 'react-hot-toast';
 
 export function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
-  const { user } = useAuth();
-  const { addItem: addToCart, items } = useCart();
-  const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlist();
-
+const { addItem: addToCart, items } = useCart();
+const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlist();
+const { settings } = useSettings();
   const [product, setProduct] = useState<Product | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
@@ -45,24 +44,26 @@ export function ProductDetailPage() {
 
       setProduct(productData as Product);
 
-      if (productData.category_id) {
-        const { data: related } = await supabase
-          .from('products')
-          .select('*, category:categories(*)')
-          .eq('category_id', productData.category_id)
-          .neq('id', productData.id)
-          .eq('status', 'active')
-          .limit(4);
-        if (related) setRelatedProducts(related as Product[]);
-      }
+      const relatedPromise = productData.category_id
+        ? supabase
+            .from('products')
+            .select('*, category:categories(*)')
+            .eq('category_id', productData.category_id)
+            .neq('id', productData.id)
+            .eq('status', 'active')
+            .limit(4)
+        : Promise.resolve({ data: [] as Product[] });
 
-      const { data: reviewsData } = await supabase
+      const reviewsPromise = supabase
         .from('reviews')
         .select('*, user:profiles(full_name, avatar_url)')
         .eq('product_id', productData.id)
         .eq('is_approved', true)
         .order('created_at', { ascending: false });
-      if (reviewsData) setReviews(reviewsData as Review[]);
+
+      const [relatedRes, reviewsRes] = await Promise.all([relatedPromise, reviewsPromise]);
+      if (relatedRes.data) setRelatedProducts(relatedRes.data as Product[]);
+      if (reviewsRes.data) setReviews(reviewsRes.data as Review[]);
 
       setLoading(false);
     };
@@ -103,8 +104,12 @@ export function ProductDetailPage() {
       toast.error('Product is out of stock');
       return;
     }
-    await addToCart(product.id, quantity);
-    toast.success('Added to cart!');
+    const res = await addToCart(product.id, quantity);
+    if (res?.error) {
+      toast.error(res.error);
+    } else {
+      toast.success('Added to cart!');
+    }
   };
 
   const handleWishlistToggle = async () => {
@@ -269,13 +274,17 @@ export function ProductDetailPage() {
               <Truck className="h-6 w-6 text-primary-600" />
               <div>
                 <p className="font-medium text-gray-900 dark:text-white text-sm">Free Delivery</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">On orders over ₹499</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+  On orders over ₹{settings.free_shipping_amount}
+</p>
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
               <RotateCcw className="h-6 w-6 text-primary-600" />
               <div>
-                <p className="font-medium text-gray-900 dark:text-white text-sm">7 Day Returns</p>
+                <p className="font-medium text-gray-900 dark:text-white text-sm">
+  7 Day Returns
+</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Easy return policy</p>
               </div>
             </div>
@@ -290,7 +299,9 @@ export function ProductDetailPage() {
               <Check className="h-6 w-6 text-primary-600" />
               <div>
                 <p className="font-medium text-gray-900 dark:text-white text-sm">Genuine Product</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Quality assured</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+  Sold by {settings.store_name}
+</p>
               </div>
             </div>
           </div>

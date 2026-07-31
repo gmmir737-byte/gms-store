@@ -2,42 +2,53 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, ShoppingBag, ArrowRight } from 'lucide-react';
 import { Button } from '../common';
+import { useSettings } from "../../contexts/SettingsContext";
 
+
+
+export function HeroBanner() {
+ const { settings } = useSettings();
+const [currentSlide, setCurrentSlide] = useState(0);
 const slides = [
   {
     id: 1,
-    title: 'Summer Sale',
-    subtitle: 'Up to 50% Off',
-    description: 'Discover amazing deals on electronics, fashion, and more. Limited time offer!',
-    image: 'https://images.pexels.com/photos/1036857/pexels-photo-1036857.jpeg?auto=compress&cs=tinysrgb&w=1600',
-    cta: 'Shop Now',
-    link: '/shop',
-    bg: 'from-primary-600/90 to-orange-600/80',
+    title: settings.store_name || "Welcome",
+    subtitle: settings.store_tagline || "Premium Shopping",
+    description:
+      settings.about_us ||
+      "Discover amazing products at the best prices with fast delivery and secure payments.",
+    image:
+      settings.logo_url ||
+      "https://images.pexels.com/photos/1036857/pexels-photo-1036857.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    cta: "Shop Now",
+    link: "/shop",
+    bg: "from-primary-600/90 to-orange-600/80",
   },
   {
     id: 2,
-    title: 'New Arrivals',
-    subtitle: 'Fresh Collection',
-    description: 'Check out the latest trends in fashion and electronics. Be the first to own!',
-    image: 'https://images.pexels.com/photos/2730465/pexels-photo-2730465.jpeg?auto=compress&cs=tinysrgb&w=1600',
-    cta: 'Explore Now',
-    link: '/shop?filter=new',
-    bg: 'from-blue-600/90 to-teal-600/80',
+    title: "New Arrivals",
+    subtitle: "Fresh Collection",
+    description:
+      "Check out the latest trends in fashion and electronics. Be the first to own!",
+    image:
+      "https://images.pexels.com/photos/2730465/pexels-photo-2730465.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    cta: "Explore Now",
+    link: "/shop?filter=new",
+    bg: "from-blue-600/90 to-teal-600/80",
   },
   {
     id: 3,
-    title: 'Flash Sale',
-    subtitle: '24 Hours Only',
-    description: 'Exclusive deals on top brands. Grab them before they are gone!',
-    image: 'https://images.pexels.com/photos/2305445/pexels-photo-2305445.jpeg?auto=compress&cs=tinysrgb&w=1600',
-    cta: 'View Deals',
-    link: '/shop?filter=flash',
-    bg: 'from-purple-600/90 to-pink-600/80',
+    title: "Flash Sale",
+    subtitle: "24 Hours Only",
+    description:
+      "Exclusive deals on top brands. Grab them before they are gone!",
+    image:
+      "https://images.pexels.com/photos/2305445/pexels-photo-2305445.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    cta: "View Deals",
+    link: "/shop?filter=flash",
+    bg: "from-purple-600/90 to-pink-600/80",
   },
 ];
-
-export function HeroBanner() {
-  const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
     const timer = setInterval(() => {

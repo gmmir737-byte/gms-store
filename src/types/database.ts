@@ -48,7 +48,7 @@ export interface Product {
 
 export interface Profile {
   id: string;
-  email: string;
+  email: string | null;
   full_name: string | null;
   phone: string | null;
   avatar_url: string | null;
@@ -114,6 +114,14 @@ export interface Order {
   payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
   payment_method: 'cod' | 'razorpay' | null;
   payment_id: string | null;
+  razorpay_order_id: string | null;
+  razorpay_payment_id: string | null;
+  razorpay_signature: string | null;
+  razorpay_order_status: string | null;
+  razorpay_order_currency: string | null;
+  razorpay_order_amount: number | null;
+  razorpay_order_created_at: string | null;
+  payment_verified_at: string | null;
   subtotal: number;
   discount: number;
   shipping_cost: number;
@@ -180,7 +188,7 @@ export interface FilterState {
 export interface CartContextType {
   items: CartItem[];
   loading: boolean;
-  addItem: (productId: string, quantity?: number) => Promise<void>;
+  addItem: (productId: string, quantity?: number) => Promise<{ error: string | null }>;
   removeItem: (itemId: string) => Promise<void>;
   updateQuantity: (itemId: string, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -201,13 +209,14 @@ export interface WishlistContextType {
 export interface AuthContextType {
   user: {
     id: string;
-    email: string;
+    email: string | null;
   } | null;
   profile: Profile | null;
   loading: boolean;
   isAdmin: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
+  signIn: (email: string, password: string, remember?: boolean) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, fullName?: string, remember?: boolean) => Promise<{ error: string | null }>;
+  signInWithProvider: (provider: 'google' | 'apple') => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   updateProfile: (data: Partial<Profile>) => Promise<{ error: string | null }>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;

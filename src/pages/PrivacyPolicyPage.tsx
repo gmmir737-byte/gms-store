@@ -1,9 +1,13 @@
 import React from 'react';
+import { useSettings } from '../contexts/SettingsContext';
 
 export function PrivacyPolicyPage() {
+  const { settings } = useSettings();
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <h1 className="text-4xl font-display font-bold text-gray-900 dark:text-white mb-8">Privacy Policy</h1>
+     <h1 className="text-4xl font-display font-bold text-gray-900 dark:text-white mb-8">
+  {settings.store_name} Privacy Policy
+</h1>
 
       <div className="prose prose-gray dark:prose-invert max-w-none">
         <p className="text-gray-600 dark:text-gray-400 mb-8">
@@ -39,12 +43,15 @@ export function PrivacyPolicyPage() {
         </section>
 
         <section className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">5. Your Rights</h2>
-          <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
-            You have the right to access, correct, or delete your personal information at any time. Please contact us at support@gmsstore.com for any such requests.
-          </p>
-        </section>
+  <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+    5. Your Rights
+  </h2>
 
+  <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+    You have the right to access, correct, or delete your personal information at any time.
+    Please contact us at {settings.email} for any such requests.
+  </p>
+</section>
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">6. Cookies and Tracking</h2>
           <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
@@ -55,7 +62,7 @@ export function PrivacyPolicyPage() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">7. Contact Us</h2>
           <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
-            If you have any questions about this Privacy Policy, please contact us at support@gmsstore.com.
+            If you have any questions about this Privacy Policy, please contact us at {settings.email}
           </p>
         </section>
       </div>

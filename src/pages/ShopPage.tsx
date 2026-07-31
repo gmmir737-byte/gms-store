@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
-import { ProductGrid, ShopFilters, ShopSort } from '../components/shop';
+import { supabase } from '../lib/supabase';import { getCache, setCache } from '../lib/cache';import { ProductGrid, ShopFilters, ShopSort } from '../components/shop';
 import { PageLoader, Pagination } from '../components/common';
 import type { Product, Category, FilterState } from '../types/database';
 
@@ -27,8 +26,19 @@ export function ShopPage() {
 
   useEffect(() => {
     const fetchCategories = async () => {
+      const cacheKey = 'gms_shop_categories';
+      const cached = getCache<Category[]>(cacheKey);
+      if (cached) {
+        setCategories(cached);
+        return;
+      }
+
       const { data } = await supabase.from('categories').select('*').order('sort_order');
-      if (data) setCategories(data as Category[]);
+      if (data) {
+        const categoryData = data as Category[];
+        setCategories(categoryData);
+        setCache(cacheKey, categoryData, 1000 * 60 * 30);
+      }
     };
     fetchCategories();
   }, []);
@@ -54,7 +64,7 @@ export function ShopPage() {
       }
 
       if (filters.search) {
-        query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%,tags.cs.{${filters.search}}`);
+        query = query.textSearch('search_vector', filters.search, { config: 'english' });
       }
 
       if (filters.priceRange[0] > 0 || filters.priceRange[1] < 100000) {
