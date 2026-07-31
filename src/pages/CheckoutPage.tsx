@@ -131,15 +131,27 @@ console.log("Supabase Error:", error);
 
 const sendOrderEmail = async (orderData: any) => {
   try {
-    await fetch("/.netlify/functions/send-order-email", {
+    const response = await fetch("/.netlify/functions/send-order-email", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(orderData),
     });
+
+    const result = await response.json();
+
+    alert(JSON.stringify(result, null, 2));
+
+    return result;
   } catch (error) {
-    console.error("Email sending failed:", error);
+    alert(
+      error instanceof Error
+        ? error.message
+        : "Email sending failed"
+    );
+
+    console.error(error);
   }
 };
 
