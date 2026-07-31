@@ -139,22 +139,21 @@ const sendOrderEmail = async (orderData: any) => {
       body: JSON.stringify(orderData),
     });
 
-    const result = await response.json();
+    const text = await response.text();
 
-    alert(JSON.stringify(result, null, 2));
+    alert(
+      `Status: ${response.status}\n\n${text || "(Empty response)"}`
+    );
 
-    return result;
+    return text;
   } catch (error) {
     alert(
       error instanceof Error
         ? error.message
         : "Email sending failed"
     );
-
-    console.error(error);
   }
 };
-
 
 const handlePlaceOrder = async () => {
     if (!showNewAddressForm && addresses.length === 0) {
