@@ -326,7 +326,16 @@ setShowNewAddressForm(false);
                 return;
               }
 
-              await sendOrderEmail({
+              console.log("=== EMAIL DEBUG ===");
+console.log({
+  customerEmail: user.email,
+  customerName: shippingAddressData.full_name,
+  orderNumber,
+  items: razorpayItems,
+  total,
+});
+
+await sendOrderEmail({
   customerEmail: user.email,
   customerName: shippingAddressData.full_name,
   orderNumber,
@@ -455,7 +464,16 @@ if (!orderResult) {
         })
       );
 
-      await sendOrderEmail({
+      console.log("=== EMAIL DEBUG ===");
+console.log({
+  customerEmail: user.email,
+  customerName: shippingAddressData.full_name,
+  orderNumber,
+  items: orderItems,
+  total,
+});
+
+await sendOrderEmail({
   customerEmail: user.email,
   customerName: shippingAddressData.full_name,
   orderNumber,
