@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, CreditCard, Truck, ShoppingBag } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,8 +7,8 @@ import { useSettings } from '../contexts/SettingsContext';
 import { Button, Input } from '../components/common';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
-import { createRazorpayOrder, verifyRazorpayPayment, markRazorpayOrderFailed } from '../lib/payment';
-import type { AddressSnapshot } from '../types/database';
+import { createRazorpayOrder, verifyRazorpayPayment, markRazorpayOrderFailed, CreateRazorpayOrderResponse } from '../lib/payment';
+import type { Address, AddressSnapshot } from '../types/database';
 
 interface RazorpayPaymentResponse {
   razorpay_payment_id: string;
@@ -46,15 +46,23 @@ interface RazorpayWindow extends Window {
 }
 
 export function CheckoutPage() {
-  const { user } = useAuth();
-  const { items, subtotal, clearCart } = useCart();
+  const { user, loading: authLoading } = useAuth();
+  const { items, subtotal, clearCart, loading: cartLoading } = useCart();
   const { settings } = useSettings();
   const navigate = useNavigate();
 
-  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'razorpay'>('cod');
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'razorpay'>(() =>
+    settings.cod_enabled ? 'cod' : 'razorpay'
+  );
   const [savingOrder, setSavingOrder] = useState(false);
 
-  const [newAddress, setNewAddress] = useState({
+  useEffect(() => {
+    if (!settings.cod_enabled && paymentMethod === 'cod') {
+      setPaymentMethod('razorpay');
+    }
+  }, [settings.cod_enabled, paymentMethod]);
+
+  const [newAddress, setNewAddress] = useState<AddressSnapshot>({
     full_name: '',
     phone: '',
     address_line1: '',
@@ -62,20 +70,76 @@ export function CheckoutPage() {
     city: '',
     state: '',
     postal_code: '',
-    country: settings.country || "India",
+    country: settings.country || 'India',
   });
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!user) {
       navigate('/login?redirect=/checkout');
-      return;
     }
+  }, [authLoading, user, navigate]);
 
-    if (items.length === 0) {
+  useEffect(() => {
+    if (authLoading || cartLoading) return;
+    if (user && items.length === 0) {
       navigate('/cart');
-      return;
     }
-  }, [user, items, navigate]);
+  }, [authLoading, cartLoading, user, items.length, navigate]);
+
+  const loadSavedAddress = useCallback(async () => {
+    if (!user || loadedUserId === user.id) return;
+
+    // Clear any previously loaded address so a different user's
+    // data is never shown, or empty fields when no address is saved.
+    setNewAddress((prev) => ({
+      ...prev,
+      full_name: '',
+      phone: '',
+      address_line1: '',
+      address_line2: '',
+      city: '',
+      state: '',
+      postal_code: '',
+    }));
+
+    try {
+      const { data, error } = await supabase
+        .from('addresses')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('type', 'shipping')
+        .limit(1);
+
+      if (error) {
+        console.error('Failed to load saved shipping address:', error);
+        return;
+      }
+
+      if (Array.isArray(data) && data.length > 0) {
+        const savedAddress = data[0] as Address;
+        setNewAddress({
+          full_name: savedAddress.full_name,
+          phone: savedAddress.phone,
+          address_line1: savedAddress.address_line1,
+          address_line2: savedAddress.address_line2 ?? '',
+          city: savedAddress.city,
+          state: savedAddress.state,
+          postal_code: savedAddress.postal_code,
+          country: savedAddress.country,
+        });
+      }
+    } catch (err) {
+      console.error('Error loading saved shipping address:', err);
+    } finally {
+      setLoadedUserId(user.id);
+    }
+  }, [user, loadedUserId]);
+
+  useEffect(() => {
+    loadSavedAddress();
+  }, [loadSavedAddress]);
 
   const shippingCost =
     subtotal >= settings.free_shipping_amount
@@ -105,12 +169,12 @@ const sendOrderEmail = async (orderData: Record<string, unknown>) => {
 
   const validateAddress = () => {
     if (
-      !newAddress.full_name ||
-      !newAddress.phone ||
-      !newAddress.address_line1 ||
-      !newAddress.city ||
-      !newAddress.state ||
-      !newAddress.postal_code
+      !newAddress.full_name.trim() ||
+      !newAddress.phone.trim() ||
+      !newAddress.address_line1.trim() ||
+      !newAddress.city.trim() ||
+      !newAddress.state.trim() ||
+      !newAddress.postal_code.trim()
     ) {
       toast.error('Please fill all required fields');
       return false;
@@ -118,10 +182,90 @@ const sendOrderEmail = async (orderData: Record<string, unknown>) => {
     return true;
   };
 
+  const loadRazorpayScript = useCallback(() => {
+    return new Promise<void>((resolve, reject) => {
+      if ((window as unknown as RazorpayWindow).Razorpay) {
+        return resolve();
+      }
+
+      const existingScript = document.querySelector(
+        'script[src="https://checkout.razorpay.com/v1/checkout.js"]'
+      );
+
+      if (existingScript) {
+        existingScript.addEventListener('load', () => resolve());
+        existingScript.addEventListener('error', () => reject(new Error('Failed to load Razorpay script')));
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Failed to load Razorpay script'));
+      document.body.appendChild(script);
+    });
+  }, []);
+
+  const saveShippingAddressToProfile = useCallback(async (address: AddressSnapshot) => {
+    if (!user) return;
+
+    const addressInsert = {
+      user_id: user.id,
+      type: 'shipping',
+      is_default: true,
+      full_name: address.full_name,
+      phone: address.phone,
+      address_line1: address.address_line1,
+      address_line2: address.address_line2 || null,
+      city: address.city,
+      state: address.state,
+      postal_code: address.postal_code,
+      country: address.country,
+    };
+
+    const { data: existingAddresses, error: fetchError } = await supabase
+      .from('addresses')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('type', 'shipping')
+      .limit(1);
+
+    if (fetchError) {
+      throw fetchError;
+    }
+
+    if (Array.isArray(existingAddresses) && existingAddresses.length > 0) {
+      const { error: updateError } = await supabase
+        .from('addresses')
+        .update(addressInsert)
+        .eq('user_id', user.id)
+        .eq('type', 'shipping');
+      if (updateError) throw updateError;
+      return;
+    }
+
+    const { error: insertError } = await supabase
+      .from('addresses')
+      .insert(addressInsert);
+    if (insertError) throw insertError;
+  }, [user]);
+
   const handlePlaceOrder = async () => {
       if (!user) return;
 
       if (!validateAddress()) {
+        return;
+      }
+
+      if (items.length === 0) {
+        toast.error('Your cart is empty. Add something to checkout.');
+        navigate('/cart');
+        return;
+      }
+
+      if (paymentMethod === 'razorpay' && !settings.razorpay_enabled) {
+        toast.error('Online payments are currently unavailable. Please choose Cash on Delivery.');
         return;
       }
 
@@ -135,6 +279,13 @@ const sendOrderEmail = async (orderData: Record<string, unknown>) => {
         postal_code: newAddress.postal_code,
         country: newAddress.country,
       };
+
+      try {
+        await saveShippingAddressToProfile(shippingAddress);
+      } catch (err) {
+        console.error('Failed to save shipping address:', err);
+        toast.error('Could not save your shipping address, but your order can still be placed.');
+      }
 
       setSavingOrder(true);
 
@@ -175,7 +326,7 @@ const sendOrderEmail = async (orderData: Record<string, unknown>) => {
             notes: null,
           };
 
-          const response = await createRazorpayOrder(payload);
+          const response = (await createRazorpayOrder(payload)) as CreateRazorpayOrderResponse;
           if (response.error || !response.razorpayOrder || !response.order) {
             toast.error(response.error || 'Failed to create Razorpay order');
             setSavingOrder(false);
@@ -253,19 +404,16 @@ const sendOrderEmail = async (orderData: Record<string, unknown>) => {
             },
           };
 
-          const script = document.createElement('script');
-          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-          script.async = true;
-          script.onload = () => {
+          try {
+            await loadRazorpayScript();
             const rzp = new (window as unknown as RazorpayWindow).Razorpay(options);
             rzp.open();
-          };
-          script.onerror = async () => {
+          } catch (err) {
+            console.error('Razorpay script load failed:', err);
             toast.error('Unable to load payment gateway. Please try again later.');
             await markRazorpayOrderFailed({ order_id: orderRecord.id, reason: 'gateway_load_failed' });
             navigate(`/order-failure?order=${orderNumber}`);
-          };
-          document.body.appendChild(script);
+          }
           return;
         }
 
@@ -414,7 +562,7 @@ if (!orderResult) {
               />
               <Input
                 label="Address Line 2"
-                value={newAddress.address_line2}
+                value={newAddress.address_line2 ?? ''}
                 onChange={(e) => setNewAddress({ ...newAddress, address_line2: e.target.value })}
                 placeholder="Apartment, suite, etc. (optional)"
               />
@@ -492,6 +640,7 @@ if (!orderResult) {
                   name="payment"
                   checked={paymentMethod === 'razorpay'}
                   onChange={() => setPaymentMethod('razorpay')}
+                  disabled={!settings.razorpay_enabled}
                 />
                 <div className="flex-1">
                   <p className="font-medium text-gray-900 dark:text-white">
@@ -499,6 +648,7 @@ if (!orderResult) {
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     Secure online payment gateway
+                    {!settings.razorpay_enabled && ' (temporarily unavailable)'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -586,7 +736,7 @@ Shipping
               className="w-full mt-6"
               onClick={handlePlaceOrder}
               loading={savingOrder}
-              disabled={items.length === 0}
+              disabled={items.length === 0 || savingOrder}
               icon={<ShoppingBag className="h-5 w-5" />}
             >
               Place Order at {settings.store_name}
