@@ -4,11 +4,11 @@ import { MapPin, CreditCard, Truck, ShoppingBag } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useSettings } from '../contexts/SettingsContext';
-import { Button, Input, LoadingSpinner } from '../components/common';
+import { Button, Input } from '../components/common';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { createRazorpayOrder, verifyRazorpayPayment, markRazorpayOrderFailed } from '../lib/payment';
-import type { Address } from '../types/database';
+import type { AddressSnapshot } from '../types/database';
 
 interface RazorpayPaymentResponse {
   razorpay_payment_id: string;
@@ -51,10 +51,7 @@ export function CheckoutPage() {
   const { settings } = useSettings();
   const navigate = useNavigate();
 
-  const [addresses, setAddresses] = useState<Address[]>([]);
-  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'razorpay'>('cod');
-  const [loading, setLoading] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
 
   const [newAddress, setNewAddress] = useState({
@@ -68,8 +65,6 @@ export function CheckoutPage() {
     country: settings.country || "India",
   });
 
-  const [showNewAddressForm, setShowNewAddressForm] = useState(false);
-
   useEffect(() => {
     if (!user) {
       navigate('/login?redirect=/checkout');
@@ -82,54 +77,14 @@ export function CheckoutPage() {
     }
   }, [user, items, navigate]);
 
-  useEffect(() => {
-    const fetchAddresses = async () => {
-  if (!user) return;
-
-  setLoading(true);
-
-  try {
-    const { data, error } = await supabase
-  .from("addresses")
-  .select("*")
-  .eq("user_id", user.id);
-
-console.log("Current User:", user);
-console.log("Fetched Addresses:", data);
-console.log("Supabase Error:", error);
-
-    if (error) throw error;
-
-    const addressList = (data || []) as Address[];
-
-    setAddresses(addressList);
-
-    if (addressList.length > 0) {
-      const defaultAddress =
-        addressList.find((a) => a.is_default) || addressList[0];
-
-      setSelectedAddress(defaultAddress.id);
-    } else {
-      setSelectedAddress(null);
-    }
-  } catch (error) {
-    console.error("Address Error:", error);
-    toast.error("Failed to load addresses");
-  } finally {
-    setLoading(false);
-  }
-};
-    fetchAddresses();
-  }, [user]);
-
   const shippingCost =
-  subtotal >= settings.free_shipping_amount
-    ? 0
-    : settings.shipping_charge;
+    subtotal >= settings.free_shipping_amount
+      ? 0
+      : settings.shipping_charge;
   const total = subtotal + shippingCost;
 
 
-const sendOrderEmail = async (orderData: any) => {
+const sendOrderEmail = async (orderData: Record<string, unknown>) => {
   try {
     const response = await fetch("/.netlify/functions/send-order-email", {
       method: "POST",
@@ -155,272 +110,187 @@ const sendOrderEmail = async (orderData: any) => {
   }
 };
 
-const handlePlaceOrder = async () => {
-    if (!showNewAddressForm && addresses.length === 0) {
-  const { data } = await supabase
-    .from("addresses")
-    .select("*")
-    .eq("user_id", user!.id);
-
-  if (data && data.length > 0) {
-    setAddresses(data as Address[]);
-    setSelectedAddress(
-      data.find(a => a.is_default)?.id ?? data[0].id
-    );
-  } else {
-    toast.error("Please add a delivery address");
-    setSavingOrder(false);
-    return;
-  }
-}
-
-if (
-  addresses.length > 0 &&
-  !selectedAddress &&
-  !showNewAddressForm
-) {
-  const defaultAddress =
-    addresses.find((a) => a.is_default) || addresses[0];
-
-  setSelectedAddress(defaultAddress.id);
-
-  toast.error("Please select a delivery address");
-
-  return;
-}
-
-    if (showNewAddressForm) {
-      if (!newAddress.full_name || !newAddress.phone || !newAddress.address_line1 || !newAddress.city || !newAddress.state || !newAddress.postal_code) {
-        toast.error('Please fill all required fields');
-        return;
-      }
+  const validateAddress = () => {
+    if (
+      !newAddress.full_name ||
+      !newAddress.phone ||
+      !newAddress.address_line1 ||
+      !newAddress.city ||
+      !newAddress.state ||
+      !newAddress.postal_code
+    ) {
+      toast.error('Please fill all required fields');
+      return false;
     }
-    if (!user) return;
+    return true;
+  };
 
-    setSavingOrder(true);
+  const handlePlaceOrder = async () => {
+      if (!user) return;
 
-    try {
-      let shippingAddressData: Address | null = null;
-
-      if (showNewAddressForm) {
-
-      const { data: savedAddress, error: addressError } = await supabase
-  .from('addresses')
-  .insert({
-    user_id: user.id,
-    type: 'shipping',
-    is_default: addresses.length === 0,
-    ...newAddress,
-  })
-  .select()
-  .single();
-
-if (addressError || !savedAddress) {
-  toast.error(addressError?.message || "Failed to save address");
-  setSavingOrder(false);
-  return;
-}
-
-shippingAddressData = savedAddress as Address;
-
-setAddresses(prev => [...prev, savedAddress as Address]);
-setSelectedAddress(savedAddress.id);
-setShowNewAddressForm(false);
-      } else {
-        shippingAddressData =
-  addresses.find((a) => a.id === selectedAddress) ??
-  addresses.find((a) => a.is_default) ??
-  addresses[0] ??
-  null;
-      }
-
-      if (!shippingAddressData) {
-        toast.error('Please select a delivery address');
-        setSavingOrder(false);
+      if (!validateAddress()) {
         return;
       }
 
-      const orderNumber = `GM${Date.now().toString().slice(-8)}`;
+      const shippingAddress: AddressSnapshot = {
+        full_name: newAddress.full_name,
+        phone: newAddress.phone,
+        address_line1: newAddress.address_line1,
+        address_line2: newAddress.address_line2,
+        city: newAddress.city,
+        state: newAddress.state,
+        postal_code: newAddress.postal_code,
+        country: newAddress.country,
+      };
 
-      const razorpayItems = items.map((item) => {
-        const price = item.product?.is_flash_sale && item.product?.flash_sale_price
-          ? item.product.flash_sale_price
-          : item.product?.price || 0;
+      setSavingOrder(true);
 
-        return {
-          product_id: item.product_id,
-          product_name: item.product?.name || 'Unknown Product',
-          product_image: item.product?.images?.[0] || null,
-          quantity: item.quantity,
-          price,
-          total: price * item.quantity,
-        };
-      });
+      try {
+        const orderNumber = `GM${Date.now().toString().slice(-8)}`;
 
-      if (paymentMethod === 'razorpay') {
-        const payload = {
-          user_id: user.id,
-          order_number: orderNumber,
-          total,
-          subtotal,
-          discount: 0,
-          shipping_cost: shippingCost,
-          tax: 0,
-          currency: settings.currency || 'INR',
-          shipping_address: {
-            full_name: shippingAddressData.full_name,
-            phone: shippingAddressData.phone,
-            address_line1: shippingAddressData.address_line1,
-            address_line2: shippingAddressData.address_line2,
-            city: shippingAddressData.city,
-            state: shippingAddressData.state,
-            postal_code: shippingAddressData.postal_code,
-            country: shippingAddressData.country,
-          },
-          billing_address: {
-            full_name: shippingAddressData.full_name,
-            phone: shippingAddressData.phone,
-            address_line1: shippingAddressData.address_line1,
-            address_line2: shippingAddressData.address_line2,
-            city: shippingAddressData.city,
-            state: shippingAddressData.state,
-            postal_code: shippingAddressData.postal_code,
-            country: shippingAddressData.country,
-          },
-          items: razorpayItems,
-          email: user.email ?? undefined,
-          phone: shippingAddressData.phone,
-          coupon_id: null,
-          notes: null,
-        };
+        const razorpayItems = items.map((item) => {
+          const price = item.product?.is_flash_sale && item.product?.flash_sale_price
+            ? item.product.flash_sale_price
+            : item.product?.price || 0;
 
-        const response = await createRazorpayOrder(payload);
-        if (response.error || !response.razorpayOrder || !response.order) {
-          toast.error(response.error || 'Failed to create Razorpay order');
-          setSavingOrder(false);
+          return {
+            product_id: item.product_id,
+            product_name: item.product?.name || 'Unknown Product',
+            product_image: item.product?.images?.[0] || null,
+            quantity: item.quantity,
+            price,
+            total: price * item.quantity,
+          };
+        });
+
+        if (paymentMethod === 'razorpay') {
+          const payload = {
+            user_id: user.id,
+            order_number: orderNumber,
+            total,
+            subtotal,
+            discount: 0,
+            shipping_cost: shippingCost,
+            tax: 0,
+            currency: settings.currency || 'INR',
+            shipping_address: shippingAddress,
+            billing_address: shippingAddress,
+            items: razorpayItems,
+            email: user.email ?? undefined,
+            phone: shippingAddress.phone,
+            coupon_id: null,
+            notes: null,
+          };
+
+          const response = await createRazorpayOrder(payload);
+          if (response.error || !response.razorpayOrder || !response.order) {
+            toast.error(response.error || 'Failed to create Razorpay order');
+            setSavingOrder(false);
+            return;
+          }
+
+          const razorpayOrder = response.razorpayOrder;
+          const orderRecord = response.order;
+
+          const options = {
+            key: import.meta.env.VITE_RAZORPAY_KEY_ID ?? '',
+            amount: razorpayOrder.amount,
+            currency: razorpayOrder.currency,
+            name: settings.store_name,
+            description: `Order ${orderNumber}`,
+            order_id: razorpayOrder.id,
+            prefill: {
+              name: shippingAddress.full_name,
+              email: user.email ?? '',
+              contact: shippingAddress.phone,
+            },
+            notes: {
+              order_number: orderNumber,
+            },
+            handler: async function (response: RazorpayPaymentResponse) {
+              setSavingOrder(true);
+              try {
+                const verifyPayload = {
+                  order_id: orderRecord.id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature,
+                };
+
+                const verifyData = await verifyRazorpayPayment(verifyPayload);
+
+                if (verifyData.error) {
+                  toast.error(verifyData.error);
+                  navigate(`/order-failure?order=${orderNumber}`);
+                  return;
+                }
+
+                await sendOrderEmail({
+                  customerEmail: user.email,
+                  customerName: shippingAddress.full_name,
+                  orderNumber,
+                  items: razorpayItems,
+                  total,
+                });
+
+                await clearCart();
+
+                navigate(
+                  `/order-success?order=${orderNumber}&email=${encodeURIComponent(user.email ?? "")}`
+                );
+              } catch {
+                toast.error('Payment verification failed. Please contact support.');
+                navigate(`/order-failure?order=${orderNumber}`);
+              } finally {
+                setSavingOrder(false);
+              }
+            },
+            modal: {
+              ondismiss: async () => {
+                toast.error('Payment was cancelled.');
+                await markRazorpayOrderFailed({ order_id: orderRecord.id, reason: 'payment_cancelled' });
+                setSavingOrder(false);
+                navigate(`/order-failure?order=${orderNumber}`);
+              },
+            },
+          };
+
+          const script = document.createElement('script');
+          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          script.async = true;
+          script.onload = () => {
+            const rzp = new (window as unknown as RazorpayWindow).Razorpay(options);
+            rzp.open();
+          };
+          script.onerror = async () => {
+            toast.error('Unable to load payment gateway. Please try again later.');
+            await markRazorpayOrderFailed({ order_id: orderRecord.id, reason: 'gateway_load_failed' });
+            navigate(`/order-failure?order=${orderNumber}`);
+          };
+          document.body.appendChild(script);
           return;
         }
 
-        const razorpayOrder = response.razorpayOrder;
-        const orderRecord = response.order;
-
-        const options = {
-          key: import.meta.env.VITE_RAZORPAY_KEY_ID ?? '',
-          amount: razorpayOrder.amount,
-          currency: razorpayOrder.currency,
-          name: settings.store_name,
-          description: `Order ${orderNumber}`,
-          order_id: razorpayOrder.id,
-          prefill: {
-            name: shippingAddressData.full_name,
-            email: user.email ?? '',
-            contact: shippingAddressData.phone,
-          },
-          notes: {
+        const { data: orderResult, error: orderError } = await supabase
+          .from('orders')
+          .insert({
             order_number: orderNumber,
-          },
-          handler: async function (response: RazorpayPaymentResponse) {
-            setSavingOrder(true);
-            try {
-              const verifyPayload = {
-                order_id: orderRecord.id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_signature: response.razorpay_signature,
-              };
+            user_id: user.id,
+            status: 'pending',
+            payment_status: 'pending',
+            payment_method: paymentMethod,
+            payment_id: null,
+            subtotal,
+            discount: 0,
+            shipping_cost: shippingCost,
+            tax: 0,
+            total,
+            shipping_address: shippingAddress,
+          })
+          .select()
+          .maybeSingle();
 
-              const verifyData = await verifyRazorpayPayment(verifyPayload);
-
-              if (verifyData.error) {
-                toast.error(verifyData.error);
-                navigate(`/order-failure?order=${orderNumber}`);
-                return;
-              }
-
-              console.log("=== EMAIL DEBUG ===");
-console.log({
-  customerEmail: user.email,
-  customerName: shippingAddressData.full_name,
-  orderNumber,
-  items: razorpayItems,
-  total,
-});
-
-await sendOrderEmail({
-  customerEmail: user.email,
-  customerName: shippingAddressData.full_name,
-  orderNumber,
-  items: razorpayItems,
-  total,
-});
-
-await clearCart();
-
-navigate(
-  `/order-success?order=${orderNumber}&email=${encodeURIComponent(user.email ?? "")}`
-);
-            } catch {
-              toast.error('Payment verification failed. Please contact support.');
-              navigate(`/order-failure?order=${orderNumber}`);
-            } finally {
-              setSavingOrder(false);
-            }
-          },
-          modal: {
-            ondismiss: async () => {
-              toast.error('Payment was cancelled.');
-              await markRazorpayOrderFailed({ order_id: orderRecord.id, reason: 'payment_cancelled' });
-              setSavingOrder(false);
-              navigate(`/order-failure?order=${orderNumber}`);
-            },
-          },
-        };
-
-        const script = document.createElement('script');
-        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-        script.async = true;
-        script.onload = () => {
-          const rzp = new (window as unknown as RazorpayWindow).Razorpay(options);
-          rzp.open();
-        };
-        script.onerror = async () => {
-          toast.error('Unable to load payment gateway. Please try again later.');
-          await markRazorpayOrderFailed({ order_id: orderRecord.id, reason: 'gateway_load_failed' });
-          navigate(`/order-failure?order=${orderNumber}`);
-        };
-        document.body.appendChild(script);
-        return;
-      }
-
-      const { data: orderResult, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          order_number: orderNumber,
-          user_id: user.id,
-          status: 'pending',
-          payment_status: 'pending',
-          payment_method: paymentMethod,
-          payment_id: null,
-          subtotal,
-          discount: 0,
-          shipping_cost: shippingCost,
-          tax: 0,
-          total,
-          shipping_address: {
-            full_name: shippingAddressData.full_name,
-            phone: shippingAddressData.phone,
-            address_line1: shippingAddressData.address_line1,
-            address_line2: shippingAddressData.address_line2,
-            city: shippingAddressData.city,
-            state: shippingAddressData.state,
-            postal_code: shippingAddressData.postal_code,
-            country: shippingAddressData.country,
-          },
-        })
-        .select()
-        .maybeSingle();
-
-      if (orderError) {
+        if (orderError) {
   console.error(orderError);
   toast.error(orderError.message);
   return;
@@ -431,25 +301,25 @@ if (!orderResult) {
   return;
 }
 
-      const orderItems = items.map(item => ({
-        order_id: orderResult.id,
-        product_id: item.product_id,
-        product_name: item.product?.name || 'Unknown Product',
-        product_image: item.product?.images?.[0] || null,
-        quantity: item.quantity,
-        price: item.product?.is_flash_sale && item.product?.flash_sale_price
-          ? item.product.flash_sale_price
-          : item.product?.price || 0,
-        total: (item.product?.is_flash_sale && item.product?.flash_sale_price
-          ? item.product.flash_sale_price
-          : item.product?.price || 0) * item.quantity,
-      }));
+        const orderItems = items.map(item => ({
+          order_id: orderResult.id,
+          product_id: item.product_id,
+          product_name: item.product?.name || 'Unknown Product',
+          product_image: item.product?.images?.[0] || null,
+          quantity: item.quantity,
+          price: item.product?.is_flash_sale && item.product?.flash_sale_price
+            ? item.product.flash_sale_price
+            : item.product?.price || 0,
+          total: (item.product?.is_flash_sale && item.product?.flash_sale_price
+            ? item.product.flash_sale_price
+            : item.product?.price || 0) * item.quantity,
+        }));
 
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
+        const { error: itemsError } = await supabase
+          .from('order_items')
+          .insert(orderItems);
 
-      if (itemsError) {
+        if (itemsError) {
   console.error(itemsError);
 
   await supabase
@@ -462,66 +332,49 @@ if (!orderResult) {
   return;
 }
 
-      await Promise.all(
-        items.map(async (item) => {
-          if (!item.product) return;
-          const { error } = await supabase.rpc('decrement_product_quantity', {
-            p_id: item.product_id,
-            qty: item.quantity,
-          });
-          if (error) {
-            console.error('Inventory decrement failed for', item.product_id, error);
-          }
-        })
-      );
+        await Promise.all(
+          items.map(async (item) => {
+            if (!item.product) return;
+            const { error } = await supabase.rpc('decrement_product_quantity', {
+              p_id: item.product_id,
+              qty: item.quantity,
+            });
+            if (error) {
+              console.error('Inventory decrement failed for', item.product_id, error);
+            }
+          })
+        );
 
-      console.log("=== EMAIL DEBUG ===");
-console.log({
-  customerEmail: user.email,
-  customerName: shippingAddressData.full_name,
-  orderNumber,
-  items: orderItems,
-  total,
-});
+        await sendOrderEmail({
+          customerEmail: user.email,
+          customerName: shippingAddress.full_name,
+          orderNumber,
+          items: orderItems,
+          total,
+        });
 
-await sendOrderEmail({
-  customerEmail: user.email,
-  customerName: shippingAddressData.full_name,
-  orderNumber,
-  items: orderItems,
-  total,
-});
+        await clearCart();
 
-await clearCart();
+        navigate(
+          `/order-success?order=${orderNumber}&email=${encodeURIComponent(user.email ?? "")}`
+        );
+      } catch (error) {
+        console.error("Checkout Error:", error);
 
-navigate(
-  `/order-success?order=${orderNumber}&email=${encodeURIComponent(user.email ?? "")}`
-);
-    } catch (error) {
-    console.error("Checkout Error:", error);
-
-    toast.error(
-        error instanceof Error
-            ? error.message
-            : "Unknown checkout error"
-    );
+        toast.error(
+            error instanceof Error
+                ? error.message
+                : "Unknown checkout error"
+        );
 } finally {
-      setSavingOrder(false);
-    }
-  };
+        setSavingOrder(false);
+      }
+    };
 
-  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-3xl font-display font-bold text-gray-900 dark:text-white mb-8">
-  Checkout • {settings.store_name}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <h1 className="text-3xl font-display font-bold text-gray-900 dark:text-white mb-8">
+      Checkout • {settings.store_name}
 </h1>
       <div className="lg:grid lg:grid-cols-3 lg:gap-8">
         {/* Left Column - Address & Payment */}
@@ -535,124 +388,54 @@ navigate(
               </h2>
             </div>
 
-            {addresses.length > 0 && !showNewAddressForm ? (
-              <div className="space-y-3">
-                {addresses.map((address) => (
-                  <label
-                    key={address.id}
-                    className={`block p-4 rounded-lg border-2 cursor-pointer transition-colors ${
-                      selectedAddress === address.id
-                        ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <input
-                        type="radio"
-                        name="address"
-                        checked={selectedAddress === address.id}
-                        onChange={() => setSelectedAddress(address.id)}
-                        className="mt-1"
-                      />
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900 dark:text-white">
-                          {address.full_name}
-                        </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {address.address_line1}
-                          {address.address_line2 && `, ${address.address_line2}`}
-                        </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {address.city}, {address.state} - {address.postal_code}
-                        </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Phone: {address.phone}
-                        </p>
-                        {address.is_default && (
-                          <span className="inline-block mt-2 px-2 py-0.5 text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded">
-                            Default
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </label>
-                ))}
-                <Button
-  variant="outline"
-  onClick={() => {
-    setSelectedAddress(null);
-    setShowNewAddressForm(true);
-  }}
-  className="w-full mt-4"
->
-  Add New Address
-</Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    label="Full Name *"
-                    value={newAddress.full_name}
-                    onChange={(e) => setNewAddress({ ...newAddress, full_name: e.target.value })}
-                    placeholder="Enter full name"
-                  />
-                  <Input
-                    label="Phone Number *"
-                    value={newAddress.phone}
-                    onChange={(e) => setNewAddress({ ...newAddress, phone: e.target.value })}
-                    placeholder="Enter phone number"
-                  />
-                </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
-                  label="Address Line 1 *"
-                  value={newAddress.address_line1}
-                  onChange={(e) => setNewAddress({ ...newAddress, address_line1: e.target.value })}
-                  placeholder="Street address"
+                  label="Full Name *"
+                  value={newAddress.full_name}
+                  onChange={(e) => setNewAddress({ ...newAddress, full_name: e.target.value })}
+                  placeholder="Enter full name"
                 />
                 <Input
-                  label="Address Line 2"
-                  value={newAddress.address_line2}
-                  onChange={(e) => setNewAddress({ ...newAddress, address_line2: e.target.value })}
-                  placeholder="Apartment, suite, etc. (optional)"
+                  label="Phone Number *"
+                  value={newAddress.phone}
+                  onChange={(e) => setNewAddress({ ...newAddress, phone: e.target.value })}
+                  placeholder="Enter phone number"
                 />
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Input
-                    label="City *"
-                    value={newAddress.city}
-                    onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })}
-                    placeholder="City"
-                  />
-                  <Input
-                    label="State *"
-                    value={newAddress.state}
-                    onChange={(e) => setNewAddress({ ...newAddress, state: e.target.value })}
-                    placeholder="State"
-                  />
-                  <Input
-                    label="PIN Code *"
-                    value={newAddress.postal_code}
-                    onChange={(e) => setNewAddress({ ...newAddress, postal_code: e.target.value })}
-                    placeholder="PIN Code"
-                  />
-                </div>
-                {addresses.length > 0 && (
-                  <Button
-  variant="ghost"
-  onClick={() => {
-    setShowNewAddressForm(false);
-
-    if (addresses.length > 0) {
-      const defaultAddr = addresses.find(a => a.is_default);
-      setSelectedAddress(defaultAddr ? defaultAddr.id : addresses[0].id);
-    }
-  }}
->
-  Use Existing Address
-</Button>
-                )}
               </div>
-            )}
+              <Input
+                label="Address Line 1 *"
+                value={newAddress.address_line1}
+                onChange={(e) => setNewAddress({ ...newAddress, address_line1: e.target.value })}
+                placeholder="Street address"
+              />
+              <Input
+                label="Address Line 2"
+                value={newAddress.address_line2}
+                onChange={(e) => setNewAddress({ ...newAddress, address_line2: e.target.value })}
+                placeholder="Apartment, suite, etc. (optional)"
+              />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Input
+                  label="City *"
+                  value={newAddress.city}
+                  onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })}
+                  placeholder="City"
+                />
+                <Input
+                  label="State *"
+                  value={newAddress.state}
+                  onChange={(e) => setNewAddress({ ...newAddress, state: e.target.value })}
+                  placeholder="State"
+                />
+                <Input
+                  label="PIN Code *"
+                  value={newAddress.postal_code}
+                  onChange={(e) => setNewAddress({ ...newAddress, postal_code: e.target.value })}
+                  placeholder="PIN Code"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Payment Method */}
@@ -709,7 +492,7 @@ navigate(
                 />
                 <div className="flex-1">
                   <p className="font-medium text-gray-900 dark:text-white">
-                  Online Payment
+                    Online Payment
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     Secure online payment gateway
