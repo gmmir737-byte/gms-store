@@ -41,7 +41,9 @@ const customerEmail = searchParams.get('email');
                   What happens next?
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-  customerEmail = {String(customerEmail)}
+                  {customerEmail
+                    ? `A confirmation email has been sent to ${customerEmail}.`
+                    : "A confirmation email has been sent to the email address you provided."}
                 </p>
               </div>
             </div>

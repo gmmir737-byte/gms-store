@@ -85,29 +85,22 @@ export function CheckoutPage() {
 
 
 const sendOrderEmail = async (orderData: Record<string, unknown>) => {
-  try {
-    const response = await fetch("/.netlify/functions/send-order-email", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(orderData),
-    });
+  const response = await fetch("/.netlify/functions/send-order-email", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(orderData),
+  });
 
-    const text = await response.text();
-
-    alert(
-      `Status: ${response.status}\n\n${text || "(Empty response)"}`
-    );
-
-    return text;
-  } catch (error) {
-    alert(
-      error instanceof Error
-        ? error.message
-        : "Email sending failed"
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(
+      `Email service error (${response.status}): ${errorBody || response.statusText}`
     );
   }
+
+  return response.text();
 };
 
   const validateAddress = () => {
@@ -225,13 +218,18 @@ const sendOrderEmail = async (orderData: Record<string, unknown>) => {
                   return;
                 }
 
-                await sendOrderEmail({
-                  customerEmail: user.email,
-                  customerName: shippingAddress.full_name,
-                  orderNumber,
-                  items: razorpayItems,
-                  total,
-                });
+                try {
+                  await sendOrderEmail({
+                    customerEmail: user.email,
+                    customerName: shippingAddress.full_name,
+                    orderNumber,
+                    items: razorpayItems,
+                    total,
+                    storeName: settings.store_name,
+                  });
+                } catch (error) {
+                  console.error("Failed to send order email:", error);
+                }
 
                 await clearCart();
 
@@ -345,13 +343,18 @@ if (!orderResult) {
           })
         );
 
-        await sendOrderEmail({
-          customerEmail: user.email,
-          customerName: shippingAddress.full_name,
-          orderNumber,
-          items: orderItems,
-          total,
-        });
+        try {
+          await sendOrderEmail({
+            customerEmail: user.email,
+            customerName: shippingAddress.full_name,
+            orderNumber,
+            items: orderItems,
+            total,
+            storeName: settings.store_name,
+          });
+        } catch (error) {
+          console.error("Failed to send order email:", error);
+        }
 
         await clearCart();
 
