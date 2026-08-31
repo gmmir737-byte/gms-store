@@ -4,6 +4,7 @@ import { Heart, Trash2, ShoppingCart } from 'lucide-react';
 import { useWishlist } from '../contexts/WishlistContext';
 import { useCart } from '../contexts/CartContext';
 import { Button, EmptyState } from '../components/common';
+import { SEO } from '../components/seo';
 import toast from 'react-hot-toast';
 
 export function WishlistPage() {
@@ -23,6 +24,7 @@ export function WishlistPage() {
   if (items.length === 0) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-20">
+        <SEO title="My Wishlist" noindex={true} />
         <EmptyState
           icon={<Heart className="h-20 w-20" />}
           title="Your wishlist is empty"
@@ -41,6 +43,7 @@ export function WishlistPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <SEO title="My Wishlist" noindex={true} />
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-display font-bold text-gray-900 dark:text-white">

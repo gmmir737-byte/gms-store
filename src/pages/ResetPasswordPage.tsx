@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Lock, Eye, EyeOff, ArrowLeft, CheckCircle } from 'lucide-react';
 import { AuthLayout } from '../components/auth/AuthLayout';
+import { SEO } from '../components/seo';
 import { Input, Button } from '../components/common';
 import authLib from '../lib/auth';
 import toast from 'react-hot-toast';
@@ -45,6 +46,8 @@ export function ResetPasswordPage() {
 
   if (success) {
     return (
+      <>
+      <SEO title="Reset Password" noindex={true} />
       <AuthLayout title="Password Reset Complete" subtitle="Your password has been updated successfully">
         <div className="text-center space-y-4 py-4">
           <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center mx-auto">
@@ -60,10 +63,13 @@ export function ResetPasswordPage() {
           </Link>
         </div>
       </AuthLayout>
+      </>
     );
   }
 
   return (
+    <>
+    <SEO title="Reset Password" noindex={true} />
     <AuthLayout title="Set New Password" subtitle="Enter your new password below to reset your account">
       <form onSubmit={handleUpdatePassword} className="space-y-4">
         <Input
@@ -111,6 +117,7 @@ export function ResetPasswordPage() {
         </div>
       </form>
     </AuthLayout>
+    </>
   );
 }
 
