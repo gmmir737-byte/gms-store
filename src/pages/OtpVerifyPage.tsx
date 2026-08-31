@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { ShieldCheck, ArrowLeft, RotateCw } from 'lucide-react';
 import { AuthLayout } from '../components/auth/AuthLayout';
+import { SEO } from '../components/seo';
 import { Input, Button } from '../components/common';
 import { PhoneInput } from '../components/common/PhoneInput';
 import authLib from '../lib/auth';
@@ -124,6 +125,8 @@ export function OtpVerifyPage() {
   };
 
   return (
+    <>
+    <SEO title="Verify OTP" noindex={true} />
     <AuthLayout
       title="Verify OTP Code"
       subtitle="Enter the verification code sent to your phone or email"
@@ -220,6 +223,7 @@ export function OtpVerifyPage() {
         </div>
       </div>
     </AuthLayout>
+    </>
   );
 }
 

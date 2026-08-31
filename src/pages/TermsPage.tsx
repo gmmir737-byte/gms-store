@@ -1,10 +1,15 @@
 import React from 'react';
 import { useSettings } from '../contexts/SettingsContext';
+import { SEO } from '../components/seo';
 
 export function TermsPage() {
   const { settings } = useSettings();
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <SEO
+        title="Terms & Conditions"
+        description={`Terms and conditions for using ${settings.store_name}. Please read these terms carefully.`}
+      />
       <h1 className="text-4xl font-display font-bold text-gray-900 dark:text-white mb-8">Terms & Conditions</h1>
 
       <div className="prose prose-gray dark:prose-invert max-w-none">

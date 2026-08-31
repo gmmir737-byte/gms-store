@@ -1,0 +1,18 @@
+User-agent: *
+Allow: /
+Allow: /shop
+Allow: /product/
+Allow: /categories/
+Disallow: /admin/
+Disallow: /checkout
+Disallow: /account
+Disallow: /cart
+Disallow: /orders
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /returns
+Disallow: /wishlist
+
+Sitemap: https://gms-store.netlify.app/.netlify/functions/sitemap

@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { XCircle, Home } from 'lucide-react';
 import { Button } from '../components/common';
+import { SEO } from '../components/seo';
 
 export function OrderFailurePage() {
   const [searchParams] = useSearchParams();
@@ -9,6 +10,7 @@ export function OrderFailurePage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-20">
+      <SEO title="Order Failed" noindex={true} />
       <div className="max-w-md w-full px-4 text-center">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
           <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-6">

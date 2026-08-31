@@ -1,10 +1,15 @@
 import React from 'react';
 import { useSettings } from '../contexts/SettingsContext';
+import { SEO } from '../components/seo';
 
 export function PrivacyPolicyPage() {
   const { settings } = useSettings();
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <SEO
+        title="Privacy Policy"
+        description={`Privacy Policy for ${settings.store_name}. Learn how we collect, use, and protect your information.`}
+      />
      <h1 className="text-4xl font-display font-bold text-gray-900 dark:text-white mb-8">
   {settings.store_name} Privacy Policy
 </h1>

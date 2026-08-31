@@ -4,6 +4,7 @@ import { RotateCcw, Package, Clock, CheckCircle, XCircle, ArrowLeft, Truck, Aler
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Button, EmptyState, LoadingSpinner, Modal } from '../components/common';
+import { SEO } from '../components/seo';
 import type { ReturnRequest, ReturnStatusHistory, Order } from '../types/database';
 import {
   formatReturnStatus,
@@ -238,6 +239,7 @@ export function MyReturnsPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+      <SEO title="My Returns" noindex={true} />
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 dark:border-gray-800 pb-5">
         <div>

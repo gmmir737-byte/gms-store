@@ -4,6 +4,7 @@ import { Package, Eye, ShoppingBag, CheckCircle, XCircle, RotateCcw, Star, Clock
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Badge, Button, EmptyState, LoadingSpinner, Modal, Pagination } from '../components/common';
+import { SEO } from '../components/seo';
 import { WriteReviewModal } from '../components/shop';
 import { ReturnItemModal } from '../components/ReturnItemModal';
 import type { Order, OrderItem, ReturnStatusHistory } from '../types/database';
@@ -267,6 +268,7 @@ export function OrdersPage() {
   if (orders.length === 0) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-20">
+        <SEO title="My Orders" noindex={true} />
         <EmptyState
           icon={<Package className="h-20 w-20" />}
           title="No orders yet"
@@ -300,6 +302,7 @@ export function OrdersPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <SEO title="My Orders" noindex={true} />
       <h1 className="text-3xl font-display font-bold text-gray-900 dark:text-white mb-8">
         My Orders
       </h1>
